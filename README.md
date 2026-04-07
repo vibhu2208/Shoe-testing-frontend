@@ -18,7 +18,7 @@ npm install
 
 ## Environment
 
-Create a `.env.local` in this folder (it is gitignored). Server-side API routes use the backend base URL:
+Copy `.env.example` to `.env.local` (or create `.env.local` yourself; it stays out of git). Server-side API routes use the backend base URL:
 
 | Variable       | Description                          | Example                 |
 |----------------|--------------------------------------|-------------------------|

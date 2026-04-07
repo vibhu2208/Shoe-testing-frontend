@@ -18,10 +18,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-emerald-50/40 to-slate-200/90">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-green-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-black/70">Loading...</p>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+          <p className="mt-4 text-sm text-slate-600">Loading…</p>
         </div>
       </div>
     );
@@ -29,10 +29,10 @@ export default function Home() {
 
   if (user?.role === 'tester') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-emerald-50/40 to-slate-200/90">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-green-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-black/70">Opening tester dashboard…</p>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+          <p className="mt-4 text-sm text-slate-600">Opening tester dashboard…</p>
         </div>
       </div>
     );
@@ -43,7 +43,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-emerald-50/40 to-slate-200/90 p-4 sm:p-6">
       <LoginForm />
     </div>
   );

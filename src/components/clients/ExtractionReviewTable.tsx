@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Plus, Trash2, AlertCircle, CheckCircle2, Eye, EyeOff, X, User } from 'lucide-react';
 
@@ -145,7 +146,7 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
     const fetchTesters = async () => {
       setLoadingTesters(true);
       try {
-        const response = await fetch('http://localhost:5000/api/clients/users?role=tester');
+        const response = await fetch(publicApiUrl('/api/clients/users?role=tester'));
         if (response.ok) {
           const testersData = await response.json();
           setTesters(testersData);

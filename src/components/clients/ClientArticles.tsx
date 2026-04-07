@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Plus, Package, Eye, MoreVertical, Calendar, FileText, CheckCircle } from 'lucide-react';
 import ArticleDetails from './ArticleDetails';
@@ -50,7 +51,7 @@ export default function ClientArticles({ clientId, clientName, onBack }: ClientA
 
   const fetchArticles = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/articles`);
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/articles`));
       if (response.ok) {
         const articlesData = await response.json();
         setArticles(articlesData);

@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import { useState, useEffect } from 'react';
 import { Calculator, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
@@ -36,7 +37,7 @@ export default function TesterReferenceCalculator({
   const fetchTestDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/tests/${testStandard}`, {
+      const response = await fetch(publicApiUrl(`/api/tests/${testStandard}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -149,7 +150,7 @@ export default function TesterReferenceCalculator({
       setLoading(true);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:5000/api/tests/${testDetails.id}/calculate`, {
+      const response = await fetch(publicApiUrl(`/api/tests/${testDetails.id}/calculate`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

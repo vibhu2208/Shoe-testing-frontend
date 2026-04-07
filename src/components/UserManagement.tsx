@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import { useState, useEffect } from 'react';
 import { User, Plus, Trash2, Mail, Settings, Calendar, Search } from 'lucide-react';
 
@@ -33,7 +34,7 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch(publicApiUrl('/api/admin/users'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -60,7 +61,7 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch(publicApiUrl('/api/admin/users'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +93,7 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${userId}`, {
+      const response = await fetch(publicApiUrl(`/api/admin/users/${userId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

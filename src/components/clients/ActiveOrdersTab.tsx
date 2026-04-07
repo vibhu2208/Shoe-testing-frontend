@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, AlertCircle, Eye, Plus } from 'lucide-react';
 
@@ -26,7 +27,7 @@ export default function ActiveOrdersTab() {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/clients/orders/active', {
+      const response = await fetch(publicApiUrl('/api/clients/orders/active'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

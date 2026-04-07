@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import { useState, useEffect } from 'react';
 import { Search, Filter, ChevronRight } from 'lucide-react';
 import TestCard from '@/components/TestCard';
@@ -30,7 +31,7 @@ export default function TestLibraryPage() {
       if (categoryFilter) params.append('category', categoryFilter);
       if (standardFilter) params.append('standard', standardFilter);
 
-      const response = await fetch(`http://localhost:5000/api/tests?${params}`, {
+      const response = await fetch(publicApiUrl(`/api/tests?${params}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -50,7 +51,7 @@ export default function TestLibraryPage() {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/tests/stats', {
+      const response = await fetch(publicApiUrl('/api/tests/stats'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -73,7 +74,7 @@ export default function TestLibraryPage() {
   const handleCategoryChange = async (testId: string, newCategory: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/tests/${testId}/category`, {
+      const response = await fetch(publicApiUrl(`/api/tests/${testId}/category`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

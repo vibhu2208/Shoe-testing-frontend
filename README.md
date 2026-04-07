@@ -18,13 +18,14 @@ npm install
 
 ## Environment
 
-Copy `.env.example` to `.env.local` (or create `.env.local` yourself; it stays out of git). Server-side API routes use the backend base URL:
+Copy `.env.example` to `.env.local`. **Production (Vercel):** set `NEXT_PUBLIC_API_BASE_URL` to your Render backend URL (HTTPS, no trailing slash), e.g. `https://your-api.onrender.com`. Redeploy after changing env vars.
 
-| Variable       | Description                          | Example                 |
-|----------------|--------------------------------------|-------------------------|
-| `BACKEND_URL`  | Base URL of the Shoe Testing API     | `http://localhost:5000` |
+| Variable                     | Where it runs        | Purpose                                      |
+|-----------------------------|----------------------|----------------------------------------------|
+| `NEXT_PUBLIC_API_BASE_URL`  | Browser / client JS  | All `fetch` calls to the Express API         |
+| `BACKEND_URL`               | Next.js API routes   | Server-side proxy to Express (optional)      |
 
-If `BACKEND_URL` is omitted, API routes default to `http://localhost:5000`.
+If unset, both default to `http://localhost:5000` for local dev.
 
 ## Scripts
 

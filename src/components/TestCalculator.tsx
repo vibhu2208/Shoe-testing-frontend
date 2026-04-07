@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Test } from '@/types/test';
 
@@ -162,7 +163,7 @@ export default function TestCalculator({
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/tests/${test.id}/calculate`, {
+      const response = await fetch(publicApiUrl(`/api/tests/${test.id}/calculate`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

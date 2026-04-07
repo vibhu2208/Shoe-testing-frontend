@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { Plus, Building2, MapPin, Mail, Phone, MoreVertical, Eye, FileText, CheckCircle } from 'lucide-react';
 import OnboardClientDrawer from '@/components/clients/OnboardClientDrawer';
@@ -43,7 +44,7 @@ export default function ClientsTab() {
   const fetchClients = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/clients', {
+      const response = await fetch(publicApiUrl('/api/clients'), {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (response.ok) {
@@ -63,7 +64,7 @@ export default function ClientsTab() {
     try {
       setLoadingStats(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/clients/stats', {
+      const response = await fetch(publicApiUrl('/api/clients/stats'), {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (response.ok) {

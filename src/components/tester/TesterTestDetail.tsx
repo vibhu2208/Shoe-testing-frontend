@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Calendar, Package, FileText, Clock, AlertCircle, Play, CheckCircle } from 'lucide-react';
 import TesterReferenceCalculator from './TesterReferenceCalculator';
@@ -52,7 +53,7 @@ export default function TesterTestDetail({ orderTestId, onBack }: TesterTestDeta
   const fetchTestDetail = async () => {
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${orderTestId}`, {
+      const response = await fetch(publicApiUrl(`/api/tester/my-tests/${orderTestId}`), {
         headers: testerId ? { 'x-user-id': testerId } : {},
       });
       if (response.ok) {
@@ -76,7 +77,7 @@ export default function TesterTestDetail({ orderTestId, onBack }: TesterTestDeta
     
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${test.id}/start`, {
+      const response = await fetch(publicApiUrl(`/api/tester/my-tests/${test.id}/start`), {
         method: 'POST',
         headers: testerId ? { 'x-user-id': testerId } : {},
       });

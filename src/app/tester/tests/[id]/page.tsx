@@ -1,12 +1,13 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, FileText, AlertTriangle, RotateCw, Download } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import TesterResultEntry from '@/components/tester/TesterResultEntry';
 import type { PeriodicRunRow } from '@/components/clients/PeriodicScheduleDrawer';
 
-const API = 'http://localhost:5000/api';
+const API = publicApiUrl('/api');
 
 interface TestDetail {
   id: string;
@@ -65,7 +66,7 @@ export default function TesterTestDetailPage() {
     setLoading(true);
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${testId}`, {
+      const response = await fetch(publicApiUrl(`/api/tester/my-tests/${testId}`), {
         headers: testerId ? { 'x-user-id': testerId } : {},
       });
       if (response.ok) {
@@ -110,7 +111,7 @@ export default function TesterTestDetailPage() {
 
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${test.id}/start`, {
+      const response = await fetch(publicApiUrl(`/api/tester/my-tests/${test.id}/start`), {
         method: 'POST',
         headers: testerId ? { 'x-user-id': testerId } : {},
       });

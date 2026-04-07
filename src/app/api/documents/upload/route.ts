@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerBackendBaseUrl } from '@/lib/apiBase';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, buffer);
 
     // Create document record in database via backend API
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getServerBackendBaseUrl();
     const authHeader = request.headers.get('Authorization');
     
     if (!authHeader) {

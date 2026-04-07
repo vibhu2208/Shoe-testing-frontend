@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, Clock, CheckCircle, AlertCircle, User, Calendar } from 'lucide-react';
 import OrderDetails from '@/components/clients/OrderDetails';
@@ -31,7 +32,7 @@ export default function ClientOrders({ clientId, clientName, onBack }: ClientOrd
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/orders`);
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/orders`));
       if (response.ok) {
         const ordersData = await response.json();
         setOrders(ordersData);

@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, Building2, Clock3, TestTube, UserRound } from 'lucide-react';
 import MetricCard from './MetricCard';
@@ -44,13 +45,13 @@ export default function AdminDashboard() {
         const token = localStorage.getItem('token');
 
         const [testsRes, clientsRes, usersRes] = await Promise.all([
-          fetch('http://localhost:5000/api/tests/stats', {
+          fetch(publicApiUrl('/api/tests/stats'), {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch('http://localhost:5000/api/clients', {
+          fetch(publicApiUrl('/api/clients'), {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch('http://localhost:5000/api/admin/users', {
+          fetch(publicApiUrl('/api/admin/users'), {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);

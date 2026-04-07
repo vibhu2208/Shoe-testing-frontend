@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
@@ -135,7 +136,7 @@ export default function OrderDetailPage({ orderId, onBack }: OrderDetailPageProp
     const fetchTesters = async () => {
       setLoadingTesters(true);
       try {
-        const response = await fetch('http://localhost:5000/api/clients/users?role=tester&is_active=true');
+        const response = await fetch(publicApiUrl('/api/clients/users?role=tester&is_active=true'));
         if (response.ok) {
           const testersData = await response.json();
           setTesters(testersData);
@@ -231,7 +232,7 @@ export default function OrderDetailPage({ orderId, onBack }: OrderDetailPageProp
       if (!selectedTesterId || !selectedTest) return;
 
       try {
-        const response = await fetch(`http://localhost:5000/api/clients/article-tests/${selectedTest.id}/assign`, {
+        const response = await fetch(publicApiUrl(`/api/clients/article-tests/${selectedTest.id}/assign`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

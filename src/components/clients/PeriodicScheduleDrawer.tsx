@@ -1,9 +1,10 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useEffect, useState } from 'react';
 import { X, Download } from 'lucide-react';
 
-const API = 'http://localhost:5000/api';
+const API = publicApiUrl('/api');
 
 export interface PeriodicScheduleRow {
   id: string;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerBackendBaseUrl } from '@/lib/apiBase';
 
 export async function GET(
   request: NextRequest,
@@ -24,7 +25,7 @@ export async function GET(
     }
 
     // Forward the request to the backend Express server
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getServerBackendBaseUrl();
     const response = await fetch(`${backendUrl}/api/extraction/status/${clientDocumentId}`, {
       method: 'GET',
       headers: {

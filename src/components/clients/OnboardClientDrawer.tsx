@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Building2, User, CheckCircle, Plus, Trash2, Upload, Download } from 'lucide-react';
 
@@ -96,7 +97,7 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/clients', {
+      const response = await fetch(publicApiUrl('/api/clients'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +129,7 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
   };
 
   const handleDownloadBulkTemplate = () => {
-    window.open('http://localhost:5000/api/clients/bulk-template', '_blank');
+    window.open(publicApiUrl('/api/clients/bulk-template'), '_blank');
   };
 
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,7 +141,7 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:5000/api/clients/bulk-upload', {
+      const response = await fetch(publicApiUrl('/api/clients/bulk-upload'), {
         method: 'POST',
         body: formData
       });

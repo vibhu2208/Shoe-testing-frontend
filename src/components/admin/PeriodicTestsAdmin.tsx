@@ -1,10 +1,11 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import PeriodicScheduleDrawer from '@/components/clients/PeriodicScheduleDrawer';
 
-const API = 'http://localhost:5000/api';
+const API = publicApiUrl('/api');
 
 interface ScheduleListRow {
   id: string;

@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, AlertCircle, Eye, Play, User, Calendar, Package, FileText } from 'lucide-react';
 
@@ -55,7 +56,7 @@ export default function TesterDashboard() {
   const fetchMyTests = async () => {
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch('http://localhost:5000/api/tester/my-tests', {
+      const response = await fetch(publicApiUrl('/api/tester/my-tests'), {
         headers: testerId ? { 'x-user-id': testerId } : {},
       });
       if (response.ok) {
@@ -74,7 +75,7 @@ export default function TesterDashboard() {
   const handleStartTest = async (testId: string) => {
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${testId}/start`, {
+      const response = await fetch(publicApiUrl(`/api/tester/my-tests/${testId}/start`), {
         method: 'POST',
         headers: testerId ? { 'x-user-id': testerId } : {},
       });

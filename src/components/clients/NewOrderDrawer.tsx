@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
@@ -93,7 +94,7 @@ export default function NewOrderDrawer({ isOpen, onClose, clientId, clientName, 
       formData.append('fileName', document.name);
       formData.append('clientId', 'temp-client-id'); // Will be replaced when order is created
 
-      const uploadResponse = await fetch('http://localhost:5000/api/documents/upload-file', {
+      const uploadResponse = await fetch(publicApiUrl('/api/documents/upload-file'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -109,7 +110,7 @@ export default function NewOrderDrawer({ isOpen, onClose, clientId, clientName, 
       const documentId = uploadResult.documentId;
 
       // Start extraction pipeline
-      const extractResponse = await fetch('http://localhost:5000/api/extraction/start', {
+      const extractResponse = await fetch(publicApiUrl('/api/extraction/start'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +185,7 @@ export default function NewOrderDrawer({ isOpen, onClose, clientId, clientName, 
         }))
       };
 
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/orders`, {
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/orders`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

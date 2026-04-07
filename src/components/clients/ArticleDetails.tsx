@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl, publicAssetUrl } from '@/lib/apiBase';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, X, Plus, FileText, Clock, CheckCircle, AlertCircle, Package, Eye, Download, User, RotateCw, Calendar } from 'lucide-react';
 import PeriodicScheduleModal from '@/components/clients/PeriodicScheduleModal';
@@ -117,7 +118,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   useEffect(() => {
     const loadSchedules = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`);
+        const res = await fetch(publicApiUrl(`/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`));
         if (res.ok) {
           const data = await res.json();
           setArticleSchedules(Array.isArray(data) ? data : []);
@@ -137,7 +138,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   const refreshArticleAndSchedules = async () => {
     await fetchArticleDetails();
     try {
-      const res = await fetch(`http://localhost:5000/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`);
+      const res = await fetch(publicApiUrl(`/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`));
       if (res.ok) {
         const data = await res.json();
         setArticleSchedules(Array.isArray(data) ? data : []);
@@ -150,7 +151,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   const fetchTesters = async () => {
     setLoadingTesters(true);
     try {
-      const response = await fetch('http://localhost:5000/api/clients/users?role=tester');
+      const response = await fetch(publicApiUrl('/api/clients/users?role=tester'));
       if (response.ok) {
         const testersData = await response.json();
         setTesters(testersData);
@@ -166,7 +167,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
 
   const fetchArticleDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/articles/${articleId}`);
+      const response = await fetch(publicApiUrl(`/api/articles/${articleId}`));
       if (response.ok) {
         const articleData = await response.json();
         setArticle(articleData);
@@ -257,7 +258,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
       } : null);
 
       // Save to backend with validated updates
-      const response = await fetch(`http://localhost:5000/api/article-tests/${testId}`, {
+      const response = await fetch(publicApiUrl(`/api/article-tests/${testId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -334,7 +335,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
     setReportActionState((prev) => ({ ...prev, [testId]: 'loading' }));
     const endpoint = regenerate ? 'regenerate-report' : 'generate-report';
     try {
-      const response = await fetch(`http://localhost:5000/api/article-tests/${testId}/${endpoint}`, { method: 'POST' });
+      const response = await fetch(publicApiUrl(`/api/article-tests/${testId}/${endpoint}`), { method: 'POST' });
       if (!response.ok) {
         setReportActionState((prev) => ({ ...prev, [testId]: 'error' }));
         return;
@@ -357,7 +358,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   };
 
   const downloadReport = (testId: string) => {
-    window.open(`http://localhost:5000/api/article-tests/${testId}/download-report`, '_blank');
+    window.open(publicApiUrl(`/api/article-tests/${testId}/download-report`), '_blank');
   };
 
   const filteredTests = article?.tests.filter(test => {
@@ -1057,8 +1058,8 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                 <p className="mb-2 font-medium text-slate-700">Photos</p>
                 <div className="grid grid-cols-3 gap-2">
                   {getPhotosFromTest(selectedResultTest).map((p) => (
-                    <button key={p.slot} className="overflow-hidden rounded border border-slate-200" onClick={() => setLightboxPhoto(`http://localhost:5000${p.url}`)}>
-                      <img src={`http://localhost:5000${p.url}`} alt={p.label} className="h-24 w-full object-cover" />
+                    <button key={p.slot} className="overflow-hidden rounded border border-slate-200" onClick={() => setLightboxPhoto(`${publicAssetUrl(p.url)}`)}>
+                      <img src={`${publicAssetUrl(p.url)}`} alt={p.label} className="h-24 w-full object-cover" />
                     </button>
                   ))}
                 </div>

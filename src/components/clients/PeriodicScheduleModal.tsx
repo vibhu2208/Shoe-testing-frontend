@@ -1,9 +1,10 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 
-const API = 'http://localhost:5000/api';
+const API = publicApiUrl('/api');
 
 export type FrequencyType = 'daily' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'custom';
 

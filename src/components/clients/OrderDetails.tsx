@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Calendar, User, Building2, FileText, Clock, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
 
@@ -66,7 +67,7 @@ export default function OrderDetails({ clientId, orderId, clientName, onBack }: 
   const fetchTesters = async () => {
     setLoadingTesters(true);
     try {
-      const response = await fetch('http://localhost:5000/api/clients/users?role=tester');
+      const response = await fetch(publicApiUrl('/api/clients/users?role=tester'));
       if (response.ok) {
         const testersData = await response.json();
         setTesters(testersData);
@@ -82,7 +83,7 @@ export default function OrderDetails({ clientId, orderId, clientName, onBack }: 
 
   const fetchOrderDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/orders/${orderId}`);
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/orders/${orderId}`));
       if (response.ok) {
         const orderData = await response.json();
         setOrder(orderData);
@@ -107,7 +108,7 @@ export default function OrderDetails({ clientId, orderId, clientName, onBack }: 
     try {
       console.log('💾 Saving test:', editedTest);
       
-      const response = await fetch(`http://localhost:5000/api/clients/article-tests/${editedTest.id}`, {
+      const response = await fetch(publicApiUrl(`/api/clients/article-tests/${editedTest.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -161,7 +162,7 @@ export default function OrderDetails({ clientId, orderId, clientName, onBack }: 
     if (!assigningTest) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/clients/article-tests/${assigningTest.id}/assign`, {
+      const response = await fetch(publicApiUrl(`/api/clients/article-tests/${assigningTest.id}/assign`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,7 +209,7 @@ export default function OrderDetails({ clientId, orderId, clientName, onBack }: 
     if (selectedTests.size === 0) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/clients/article-tests/bulk-assign', {
+      const response = await fetch(publicApiUrl('/api/clients/article-tests/bulk-assign'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState } from 'react';
 import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
@@ -99,7 +100,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       formData.append('fileName', document.name);
       formData.append('clientId', String(clientId));
 
-      const uploadResponse = await fetch('http://localhost:5000/api/documents/upload-file', {
+      const uploadResponse = await fetch(publicApiUrl('/api/documents/upload-file'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -116,7 +117,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       const documentId = uploadResult.documentId;
 
       // Start extraction pipeline
-      const extractResponse = await fetch('http://localhost:5000/api/extraction/start', {
+      const extractResponse = await fetch(publicApiUrl('/api/extraction/start'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,7 +221,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
         })) : []
       };
 
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/articles`, {
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/articles`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,7 +250,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
   };
 
   const handleDownloadBulkTemplate = () => {
-    window.open(`http://localhost:5000/api/clients/${clientId}/articles/bulk-template`, '_blank');
+    window.open(publicApiUrl(`/api/clients/${clientId}/articles/bulk-template`), '_blank');
   };
 
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,7 +262,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/articles/bulk-upload`, {
+      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/articles/bulk-upload`), {
         method: 'POST',
         body: formData
       });

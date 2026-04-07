@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
 import { User, Search, Filter, LogOut, RotateCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -86,7 +87,7 @@ export default function TesterDashboardPage() {
   const fetchAssignedTests = async () => {
     try {
       const testerId = getCurrentTesterId();
-      const response = await fetch('http://localhost:5000/api/tester/my-tests', {
+      const response = await fetch(publicApiUrl('/api/tester/my-tests'), {
         headers: testerId ? { 'x-user-id': testerId } : {},
       });
       if (response.ok) {
@@ -136,7 +137,7 @@ export default function TesterDashboardPage() {
     try {
       const testerId = getCurrentTesterId();
       const response = await fetch(
-        `http://localhost:5000/api/tester/my-tests/${testId}/start`,
+        publicApiUrl(`/api/tester/my-tests/${testId}/start`),
         {
           method: 'POST',
           headers: testerId ? { 'x-user-id': testerId } : {},

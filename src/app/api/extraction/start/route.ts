@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerBackendBaseUrl } from '@/lib/apiBase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward the request to the backend Express server
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getServerBackendBaseUrl();
     const response = await fetch(`${backendUrl}/api/extraction/start`, {
       method: 'POST',
       headers: {

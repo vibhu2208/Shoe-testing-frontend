@@ -1,5 +1,6 @@
 'use client';
 
+import { publicApiUrl, publicAssetUrl } from '@/lib/apiBase';
 import { useEffect, useState, useCallback } from 'react';
 import TestCalculator from '@/components/TestCalculator';
 import { Test } from '@/types/test';
@@ -81,7 +82,7 @@ export default function TesterResultEntry({
     let cancelled = false;
     setLoadError(null);
 
-    fetch(`http://localhost:5000/api/tests/${encodeURIComponent(libraryId)}`, {
+    fetch(publicApiUrl(`/api/tests/${encodeURIComponent(libraryId)}`), {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(async (r) => {
@@ -106,7 +107,7 @@ export default function TesterResultEntry({
   useEffect(() => {
     if (typeof window === 'undefined' || !articleTestId) return;
     const testerHeaders = getTesterIdHeader();
-    fetch(`http://localhost:5000/api/tester/my-tests/${articleTestId}`, { headers: testerHeaders })
+    fetch(publicApiUrl(`/api/tester/my-tests/${articleTestId}`), { headers: testerHeaders })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         const existing = Array.isArray(d?.result_data?.photos) ? d.result_data.photos : [];
@@ -137,7 +138,7 @@ export default function TesterResultEntry({
     setSubmitting(true);
     try {
       const res = await fetch(
-        `http://localhost:5000/api/tester/my-tests/${articleTestId}/submit-results`,
+        publicApiUrl(`/api/tester/my-tests/${articleTestId}/submit-results`),
         {
           method: 'POST',
           headers: {
@@ -213,7 +214,7 @@ export default function TesterResultEntry({
     setUploadProgress((p) => ({ ...p, [slot]: 0 }));
     await new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `http://localhost:5000/api/tester/my-tests/${articleTestId}/photos`);
+      xhr.open('POST', publicApiUrl(`/api/tester/my-tests/${articleTestId}/photos`));
       const headers = getTesterIdHeader();
       Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
       xhr.upload.onprogress = (e) => {
@@ -248,7 +249,7 @@ export default function TesterResultEntry({
   };
 
   const removePhoto = async (slot: number) => {
-    const res = await fetch(`http://localhost:5000/api/tester/my-tests/${articleTestId}/photos/${slot}`, {
+    const res = await fetch(publicApiUrl(`/api/tester/my-tests/${articleTestId}/photos/${slot}`), {
       method: 'DELETE',
       headers: { ...getTesterIdHeader() }
     });
@@ -311,7 +312,7 @@ export default function TesterResultEntry({
                     />
                     {existing ? (
                       <>
-                        <img src={`http://localhost:5000${existing.url}`} alt={existing.label} className="h-full w-full rounded-lg object-cover" />
+                        <img src={`${publicAssetUrl(existing.url)}`} alt={existing.label} className="h-full w-full rounded-lg object-cover" />
                         <button type="button" onClick={(e) => { e.stopPropagation(); removePhoto(slotCfg.slot); }} className="absolute right-2 top-2 rounded bg-white/90 px-1 text-xs text-black">X</button>
                       </>
                     ) : uploadingSlot === slotCfg.slot ? (

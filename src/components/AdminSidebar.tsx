@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   LayoutDashboard, 
@@ -13,22 +14,21 @@ import {
   ChevronLeft,
   ChevronRight,
   TestTube,
-  Building2
+  Building2,
+  RotateCw
 } from 'lucide-react';
 
 interface AdminSidebarProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
   isCollapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
 }
 
 export default function AdminSidebar({ 
-  activeSection, 
-  onSectionChange, 
   isCollapsed: propCollapsed = false, 
   onCollapse 
 }: AdminSidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [localCollapsed, setLocalCollapsed] = useState(propCollapsed);
   const { user, logout } = useAuth();
@@ -43,10 +43,11 @@ export default function AdminSidebar({
   };
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'clients', label: 'Clients', icon: Building2 },
-    { id: 'tests', label: 'Test Library', icon: TestTube },
-    { id: 'users', label: 'User Management', icon: Users },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
+    { id: 'clients', label: 'Clients', icon: Building2, href: '/admin/clients' },
+    { id: 'periodic', label: 'Periodic tests', icon: RotateCw, href: '/admin/periodic-tests' },
+    { id: 'tests', label: 'Test Library', icon: TestTube, href: '/admin/test-library' },
+    { id: 'users', label: 'User Management', icon: Users, href: '/admin/users' },
   ];
 
   const handleLogout = () => {
@@ -100,16 +101,17 @@ export default function AdminSidebar({
           <nav className="flex-1 p-4 space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <button
                   key={item.id}
                   onClick={() => {
-                    onSectionChange(item.id);
+                    router.push(item.href);
                     setIsMobileMenuOpen(false);
                   }}
                   className={`
                     w-full flex items-center px-3 py-2.5 rounded-lg transition-all duration-200
-                    ${activeSection === item.id
+                    ${isActive
                       ? 'bg-white text-gray-900 shadow-sm'
                       : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                     }

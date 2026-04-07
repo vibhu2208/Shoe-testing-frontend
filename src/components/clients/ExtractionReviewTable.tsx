@@ -23,7 +23,7 @@ interface TestRow {
   standard_method: string | null;
   client_requirement: string;
   category: 'Raw Material' | 'Work In Progress' | 'Finished Good';
-  execution_type: 'inhouse' | 'outsource';
+  execution_type: 'inhouse' | 'outsource' | 'both';
   inhouse_test_id: string | null;
   vendor_name: string;
   vendor_contact: string;
@@ -117,13 +117,13 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
         hasError = true;
       }
       
-      if (test.execution_type === 'outsource') {
+      if (test.execution_type === 'outsource' || test.execution_type === 'both') {
         if (!test.vendor_name.trim()) {
-          errors.push(`Row ${test.serial_number}: Vendor name is required for outsource tests`);
+          errors.push(`Row ${test.serial_number}: Vendor name is required for outsource/both tests`);
           hasError = true;
         }
         if (!test.expected_report_date) {
-          errors.push(`Row ${test.serial_number}: Expected report date is required for outsource tests`);
+          errors.push(`Row ${test.serial_number}: Expected report date is required for outsource/both tests`);
           hasError = true;
         }
       }
@@ -334,8 +334,8 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
               // Calculate validation errors for this specific test
               const hasTestNameError = !test.test_name.trim();
               const hasRequirementError = !test.client_requirement.trim();
-              const hasVendorError = test.execution_type === 'outsource' && !test.vendor_name.trim();
-              const hasDateError = test.execution_type === 'outsource' && !test.expected_report_date;
+              const hasVendorError = (test.execution_type === 'outsource' || test.execution_type === 'both') && !test.vendor_name.trim();
+              const hasDateError = (test.execution_type === 'outsource' || test.execution_type === 'both') && !test.expected_report_date;
               const hasError = hasTestNameError || hasRequirementError || hasVendorError || hasDateError;
               
               return (
@@ -428,11 +428,22 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
                       >
                         Outsource
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => updateTest(test.id, { execution_type: 'both' })}
+                        className={`px-2 py-1 text-xs font-medium flex-1 ${
+                          test.execution_type === 'both'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                        }`}
+                      >
+                        Both
+                      </button>
                     </div>
                   </td>
                   
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
                       <div>
                         <select
                           value={test.inhouse_test_id || ''}
@@ -450,6 +461,37 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
                             <CheckCircle2 className="w-3 h-3 mr-1" />
                             Auto-mapped
                           </span>
+                        )}
+                        {(test.execution_type === 'both') && (
+                          <div className="space-y-1 mt-2">
+                            <input
+                              key={`vendor-name-${test.id}`}
+                              type="text"
+                              value={test.vendor_name}
+                              onChange={(e) => updateTest(test.id, { vendor_name: e.target.value })}
+                              className={`w-full px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                                hasVendorError ? 'border-red-300' : 'border-slate-200'
+                              }`}
+                              placeholder="Vendor name"
+                            />
+                            <input
+                              key={`vendor-email-${test.id}`}
+                              type="email"
+                              value={test.vendor_email}
+                              onChange={(e) => updateTest(test.id, { vendor_email: e.target.value })}
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Vendor email"
+                            />
+                            <input
+                              key={`expected-date-${test.id}`}
+                              type="date"
+                              value={test.expected_report_date || ''}
+                              onChange={(e) => updateTest(test.id, { expected_report_date: e.target.value || null })}
+                              className={`w-full px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                                hasDateError ? 'border-red-300' : 'border-slate-200'
+                              }`}
+                            />
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -487,7 +529,7 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
                   
                   {/* Assign Tester Column - only for in-house tests */}
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
                       <div className="space-y-2">
                         {test.assigned_tester_id ? (
                           <div className="flex items-center justify-between">
@@ -535,7 +577,7 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
                   
                   {/* Deadline Column - only for in-house tests */}
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
                       <div className="space-y-2">
                         {test.test_deadline ? (
                           <div className="flex items-center justify-between">

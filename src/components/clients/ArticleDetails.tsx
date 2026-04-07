@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit2, Save, X, Plus, Trash2, Calendar, User, Building2, FileText, Clock, CheckCircle, AlertCircle, Package, Eye } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, X, Plus, FileText, Clock, CheckCircle, AlertCircle, Package, Eye, Download, User, RotateCw, Calendar } from 'lucide-react';
+import PeriodicScheduleModal from '@/components/clients/PeriodicScheduleModal';
+import PeriodicScheduleDrawer from '@/components/clients/PeriodicScheduleDrawer';
 
 const INHOUSE_TEST_OPTIONS = [
   { id: 'SATRA-TM-174', label: 'SATRA-TM-174 — Sole Abrasion' },
@@ -17,12 +19,12 @@ const INHOUSE_TEST_OPTIONS = [
 ];
 
 interface ArticleTest {
-  id: number;
+  id: string;
   test_name: string;
   test_standard: string;
   client_requirement: string;
   category: string;
-  execution_type: 'inhouse' | 'outsource';
+  execution_type: 'inhouse' | 'outsource' | 'both';
   inhouse_test_id: string;
   vendor_name: string;
   vendor_contact: string;
@@ -30,15 +32,32 @@ interface ArticleTest {
   expected_report_date: string | null;
   assigned_tester_id: number | null;
   test_deadline: string | null;
-  status: 'pending' | 'in_progress' | 'submitted' | 'pass' | 'fail' | null;
+  status: 'pending' | 'assigned' | 'in_progress' | 'submitted' | 'pass' | 'fail' | null;
   result: string | null;
   result_data: string | null;
   notes: string | null;
   submitted_at: string | null;
+  report_generated?: boolean;
+  report_url?: string | null;
+  report_generated_at?: string | null;
+  report_number?: string | null;
   created_at: string;
   batch_number: string | null;
   tester_name: string | null;
   tester_department: string | null;
+  is_periodic?: boolean;
+  periodic_schedule_id?: string | null;
+  periodic_run_number?: number | null;
+}
+
+interface ArticleScheduleSummary {
+  id: string;
+  frequency_type: string;
+  frequency_value: number;
+  total_occurrences: number | null;
+  completed_occurrences: number;
+  next_due_date: string | null;
+  schedule_status: string;
 }
 
 interface TestBatch {
@@ -82,12 +101,51 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   const [loadingTesters, setLoadingTesters] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
-  const [savingTests, setSavingTests] = useState<Set<number>>(new Set());
+  const [savingTests, setSavingTests] = useState<Set<string>>(new Set());
+  const [selectedResultTest, setSelectedResultTest] = useState<ArticleTest | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+  const [reportActionState, setReportActionState] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({});
+  const [articleSchedules, setArticleSchedules] = useState<ArticleScheduleSummary[]>([]);
+  const [scheduleModalTest, setScheduleModalTest] = useState<ArticleTest | null>(null);
+  const [scheduleDrawerId, setScheduleDrawerId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchArticleDetails();
     fetchTesters();
   }, [clientId, articleId]);
+
+  useEffect(() => {
+    const loadSchedules = async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`);
+        if (res.ok) {
+          const data = await res.json();
+          setArticleSchedules(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        setArticleSchedules([]);
+      }
+    };
+    loadSchedules();
+  }, [articleId]);
+
+  const getScheduleForTest = (test: ArticleTest): ArticleScheduleSummary | null => {
+    if (!test.periodic_schedule_id) return null;
+    return articleSchedules.find((s) => s.id === test.periodic_schedule_id) || null;
+  };
+
+  const refreshArticleAndSchedules = async () => {
+    await fetchArticleDetails();
+    try {
+      const res = await fetch(`http://localhost:5000/api/periodic/schedules?articleId=${encodeURIComponent(String(articleId))}`);
+      if (res.ok) {
+        const data = await res.json();
+        setArticleSchedules(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   const fetchTesters = async () => {
     setLoadingTesters(true);
@@ -122,11 +180,14 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
     }
   };
 
-  const updateTest = async (testId: number, updates: Partial<ArticleTest>) => {
+  const updateTest = async (testId: string, updates: Partial<ArticleTest>) => {
     console.log('🔄 Updating test:', testId, updates);
     
     // Validate required fields before sending to backend
-    const validatedUpdates = { ...updates };
+    const validatedUpdates: Partial<ArticleTest> = { ...updates };
+
+    const statusProvided = Object.prototype.hasOwnProperty.call(validatedUpdates, 'status');
+    const assignedTesterProvided = Object.prototype.hasOwnProperty.call(validatedUpdates, 'assigned_tester_id');
     
     // Don't send empty test_name to backend
     if ('test_name' in validatedUpdates && (!validatedUpdates.test_name || validatedUpdates.test_name.trim() === '')) {
@@ -139,12 +200,15 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
       setArticle(prev => prev ? {
         ...prev,
         tests: prev.tests.map(test => 
-          test.id === testId ? { ...test, ...updates } : test
+          test.id === testId ? { ...test, ...validatedUpdates } : test
         )
       } : null);
       return;
     }
     
+    const originalTestSnapshot = article?.tests.find(t => t.id === testId);
+    const originalSnapshot = originalTestSnapshot ? { ...originalTestSnapshot } : null;
+
     // Add to saving state
     setSavingTests(prev => new Set(prev).add(testId));
     
@@ -153,7 +217,42 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
       setArticle(prev => prev ? {
         ...prev,
         tests: prev.tests.map(test => 
-          test.id === testId ? { ...test, ...updates } : test
+          test.id === testId
+            ? (() => {
+                const nextTest = { ...test, ...validatedUpdates };
+
+                // Mirror backend auto status + tester derived fields when assigned_tester_id changes.
+                if (assignedTesterProvided) {
+                  const assignedTesterIdAny = validatedUpdates.assigned_tester_id as any;
+                  const hasTester =
+                    assignedTesterIdAny !== null &&
+                    assignedTesterIdAny !== undefined &&
+                    assignedTesterIdAny !== '';
+
+                  if (!statusProvided) {
+                    const currentStatus = test.status;
+                    if (hasTester && (currentStatus === 'pending' || currentStatus === 'assigned')) {
+                      nextTest.status = 'assigned';
+                    }
+                    if (!hasTester && currentStatus === 'assigned') {
+                      nextTest.status = 'pending';
+                    }
+                  }
+
+                  if (hasTester) {
+                    const testerIdStr = String(validatedUpdates.assigned_tester_id);
+                    const tester = testers.find(t => String(t.id) === testerIdStr);
+                    nextTest.tester_name = tester?.name ?? test.tester_name;
+                    nextTest.tester_department = tester?.department ?? test.tester_department;
+                  } else {
+                    nextTest.tester_name = null;
+                    nextTest.tester_department = null;
+                  }
+                }
+
+                return nextTest;
+              })()
+            : test
         )
       } : null);
 
@@ -167,26 +266,31 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
       });
 
       if (!response.ok) {
-        // Revert local state on error
-        setArticle(prev => prev ? {
-          ...prev,
-          tests: prev.tests.map(test => 
-            test.id === testId ? { ...test, ...Object.keys(updates).reduce((acc, key) => {
-              // This is a simple revert - in production you'd want to store original values
-              return acc;
-            }, {}) } : test
-          )
-        } : null);
-        
         const errorText = await response.text();
         console.error('❌ Failed to update test:', errorText);
         alert(`Failed to update test: ${errorText}`);
+
+        // Revert optimistic UI on error.
+        if (originalSnapshot) {
+          setArticle(prev => prev ? {
+            ...prev,
+            tests: prev.tests.map(test => (test.id === testId ? originalSnapshot : test)),
+          } : null);
+        }
       } else {
         console.log('✅ Test updated successfully');
       }
     } catch (error) {
       console.error('❌ Error updating test:', error);
       alert(`Error updating test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Revert optimistic UI on error.
+      if (originalSnapshot) {
+        setArticle(prev => prev ? {
+          ...prev,
+          tests: prev.tests.map(test => (test.id === testId ? originalSnapshot : test)),
+        } : null);
+      }
     } finally {
       // Remove from saving state
       setSavingTests(prev => {
@@ -200,6 +304,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'assigned': return 'bg-green-100 text-green-700';
       case 'in_progress': return 'bg-blue-100 text-blue-700';
       case 'submitted': return 'bg-purple-100 text-purple-700';
       case 'pass': return 'bg-green-100 text-green-700';
@@ -211,6 +316,7 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
   const getStatusIcon = (status: string | null) => {
     switch (status) {
       case 'pending': return <Clock className="w-3 h-3" />;
+      case 'assigned': return <User className="w-3 h-3" />;
       case 'in_progress': return <AlertCircle className="w-3 h-3" />;
       case 'submitted': return <FileText className="w-3 h-3" />;
       case 'pass': return <CheckCircle className="w-3 h-3" />;
@@ -219,11 +325,52 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
     }
   };
 
+  const getPhotosFromTest = (test: ArticleTest): Array<{ slot: number; label: string; url: string }> => {
+    const parsed = test.result_data && typeof test.result_data === 'string' ? (() => { try { return JSON.parse(test.result_data); } catch { return null; } })() : test.result_data;
+    return Array.isArray(parsed?.photos) ? parsed.photos : [];
+  };
+
+  const generateReport = async (testId: string, regenerate = false) => {
+    setReportActionState((prev) => ({ ...prev, [testId]: 'loading' }));
+    const endpoint = regenerate ? 'regenerate-report' : 'generate-report';
+    try {
+      const response = await fetch(`http://localhost:5000/api/article-tests/${testId}/${endpoint}`, { method: 'POST' });
+      if (!response.ok) {
+        setReportActionState((prev) => ({ ...prev, [testId]: 'error' }));
+        return;
+      }
+      const data = await response.json();
+      setArticle((prev) => prev ? ({
+        ...prev,
+        tests: prev.tests.map((t) => t.id === testId ? {
+          ...t,
+          report_generated: true,
+          report_url: data.reportUrl,
+          report_number: data.reportNumber,
+          report_generated_at: new Date().toISOString()
+        } : t)
+      }) : null);
+      setReportActionState((prev) => ({ ...prev, [testId]: 'success' }));
+    } catch {
+      setReportActionState((prev) => ({ ...prev, [testId]: 'error' }));
+    }
+  };
+
+  const downloadReport = (testId: string) => {
+    window.open(`http://localhost:5000/api/article-tests/${testId}/download-report`, '_blank');
+  };
+
   const filteredTests = article?.tests.filter(test => {
     if (selectedBatch === 'all') return true;
     if (selectedBatch === 'no-batch') return !test.batch_number;
     return test.batch_number === selectedBatch;
   }) || [];
+
+  const periodicScheduleIdsOnArticle = useMemo(
+    () =>
+      [...new Set((article?.tests || []).map((t) => t.periodic_schedule_id).filter(Boolean))] as string[],
+    [article?.tests]
+  );
 
   if (loading) {
     return (
@@ -278,27 +425,27 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-slate-600">Article Number</p>
-            <p className="font-medium">{article.article_number}</p>
+            <p className="font-medium text-slate-900">{article.article_number}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Article Name</p>
-            <p className="font-medium">{article.article_name}</p>
+            <p className="font-medium text-slate-900">{article.article_name}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Material Type</p>
-            <p className="font-medium">{article.material_type || 'Not specified'}</p>
+            <p className="font-medium text-slate-900">{article.material_type || 'Not specified'}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Color</p>
-            <p className="font-medium">{article.color || 'Not specified'}</p>
+            <p className="font-medium text-slate-900">{article.color || 'Not specified'}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Total Tests</p>
-            <p className="font-medium">{article.tests.length}</p>
+            <p className="font-medium text-slate-900">{article.tests.length}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Test Batches</p>
-            <p className="font-medium">{article.batches.length}</p>
+            <p className="font-medium text-slate-900">{article.batches.length}</p>
           </div>
         </div>
         {article.description && (
@@ -308,6 +455,33 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
           </div>
         )}
       </div>
+
+      {periodicScheduleIdsOnArticle.length > 0 && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50/90 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-violet-950">Periodic testing — all runs &amp; reports</h3>
+              <p className="mt-1 text-sm text-violet-900/90">
+                Every completed cycle keeps its own assignment row and CoA. Open the schedule for a single place to see
+                run history, results, and downloadable reports for each cycle.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {periodicScheduleIdsOnArticle.map((sid) => (
+                <button
+                  key={sid}
+                  type="button"
+                  onClick={() => setScheduleDrawerId(sid)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-100"
+                >
+                  <RotateCw className="h-4 w-4" />
+                  View schedule &amp; all CoAs
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Test Batches */}
       {article.batches.length > 0 && (
@@ -398,7 +572,9 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {filteredTests.map((test) => (
+              {filteredTests.map((test) => {
+                const sched = getScheduleForTest(test);
+                return (
                 <tr key={test.id} className="hover:bg-slate-50">
                   <td className="px-3 py-4">
                     <input
@@ -409,6 +585,18 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                     />
                     {test.inhouse_test_id && (
                       <p className="text-xs text-slate-500 mt-1">ID: {test.inhouse_test_id}</p>
+                    )}
+                    {sched && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800">
+                          <RotateCw className="h-3 w-3 shrink-0" />
+                          Periodic
+                          {sched.frequency_value ? ` · every ${sched.frequency_value}d` : ''}
+                          {typeof test.periodic_run_number === 'number'
+                            ? ` · run ${test.periodic_run_number}/${sched.total_occurrences ?? '∞'}`
+                            : ''}
+                        </span>
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-4">
@@ -471,10 +659,21 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                       >
                         Outsource
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => updateTest(test.id, { execution_type: 'both' })}
+                        className={`px-2 py-1 text-xs font-medium flex-1 ${
+                          test.execution_type === 'both'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                        }`}
+                      >
+                        Both
+                      </button>
                     </div>
                   </td>
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
                       <div>
                         <select
                           value={test.inhouse_test_id || ''}
@@ -493,13 +692,31 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                             Mapped
                           </span>
                         )}
+                        {test.execution_type === 'both' && (
+                          <div className="space-y-2 mt-2">
+                            <input
+                              type="text"
+                              value={test.vendor_name || ''}
+                              onChange={(e) => updateTest(test.id, { vendor_name: e.target.value })}
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Vendor name"
+                            />
+                            <input
+                              type="email"
+                              value={test.vendor_email || ''}
+                              onChange={(e) => updateTest(test.id, { vendor_email: e.target.value })}
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Vendor email"
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-sm text-slate-500">—</span>
                     )}
                   </td>
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
                       test.assigned_tester_id ? (
                         <div className="flex items-center justify-between">
                           <div>
@@ -549,33 +766,51 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                     )}
                   </td>
                   <td className="px-3 py-4">
-                    {test.execution_type === 'inhouse' ? (
-                      test.test_deadline ? (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs text-slate-600">
-                              {new Date(test.test_deadline).toLocaleDateString()}
-                            </span>
-                            <p className="text-xs text-slate-400">Test Deadline</p>
+                    {test.execution_type === 'inhouse' || test.execution_type === 'both' ? (
+                      <>
+                        {test.test_deadline ? (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-xs text-slate-600">
+                                {new Date(test.test_deadline).toLocaleDateString()}
+                              </span>
+                              <p className="text-xs text-slate-400">Test Deadline</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => updateTest(test.id, { test_deadline: null })}
+                              className="p-1 text-slate-400 hover:text-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => updateTest(test.id, { test_deadline: null })}
-                            className="p-1 text-slate-400 hover:text-red-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <input
-                          type="date"
-                          value={test.test_deadline || ''}
-                          onChange={(e) => updateTest(test.id, { test_deadline: e.target.value || '' })}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                          placeholder="Test deadline"
-                        />
-                      )
+                        ) : (
+                          <input
+                            type="date"
+                            value={test.test_deadline || ''}
+                            onChange={(e) =>
+                              updateTest(test.id, { test_deadline: e.target.value ? e.target.value : null })
+                            }
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="Test deadline"
+                          />
+                        )}
+                        {test.execution_type === 'both' && (
+                          <div className="mt-2">
+                            <input
+                              type="date"
+                              value={test.expected_report_date || ''}
+                              onChange={(e) =>
+                                updateTest(test.id, { expected_report_date: e.target.value ? e.target.value : null })
+                              }
+                              min={new Date().toISOString().split('T')[0]}
+                              className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Expected report date"
+                            />
+                          </div>
+                        )}
+                      </>
                     ) : (
                       test.expected_report_date ? (
                         <div className="flex items-center justify-between">
@@ -597,7 +832,9 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                         <input
                           type="date"
                           value={test.expected_report_date || ''}
-                          onChange={(e) => updateTest(test.id, { expected_report_date: e.target.value || '' })}
+                          onChange={(e) =>
+                            updateTest(test.id, { expected_report_date: e.target.value ? e.target.value : null })
+                          }
                           min={new Date().toISOString().split('T')[0]}
                           className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
                           placeholder="Expected report date"
@@ -612,7 +849,33 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                     </span>
                   </td>
                   <td className="px-3 py-4">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(test.execution_type === 'inhouse' || test.execution_type === 'both') && (
+                        <>
+                          {!test.periodic_schedule_id ? (
+                            <button
+                              type="button"
+                              onClick={() => setScheduleModalTest(test)}
+                              className="inline-flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-800 hover:bg-violet-100"
+                              title="Set periodic schedule"
+                            >
+                              <Calendar className="h-3 w-3 shrink-0" />
+                              Set schedule
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setScheduleDrawerId(test.periodic_schedule_id!)}
+                              className="inline-flex items-center gap-1 rounded border border-violet-200 px-2 py-1 text-xs text-violet-800 hover:bg-violet-50"
+                              title="View periodic schedule"
+                            >
+                              <RotateCw className="h-3 w-3 shrink-0" />
+                              View schedule
+                            </button>
+                          )}
+                        </>
+                      )}
                       {savingTests.has(test.id) ? (
                         <div className="flex items-center space-x-1 text-xs text-slate-500">
                           <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
@@ -621,23 +884,55 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
                       ) : (
                         <span className="text-xs text-green-600">✓ Auto-saved</span>
                       )}
-                      <button
-                        onClick={() => {
-                          const currentTest = article?.tests.find(t => t.id === test.id);
-                          if (currentTest) {
-                            console.log('Current test data:', currentTest);
-                            alert(`Test: ${currentTest.test_name}\nStatus: ${currentTest.status}\nExecution: ${currentTest.execution_type}\nCategory: ${currentTest.category}`);
-                          }
-                        }}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                        title="View test details"
-                      >
-                        <Eye className="w-3 h-3" />
-                      </button>
+                      {(test.status === 'submitted' || test.result) && (
+                        <button
+                          onClick={() => setSelectedResultTest(test)}
+                          className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                          title="View Result"
+                        >
+                          <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" /> View Result</span>
+                        </button>
+                      )}
+                      {(test.execution_type === 'inhouse' || test.execution_type === 'both') && test.status === 'submitted' && (
+                        <div className="flex flex-col items-start gap-1">
+                          {reportActionState[test.id] === 'loading' ? (
+                            <button disabled className="rounded border border-green-600 px-2 py-1 text-xs text-green-700 opacity-70">Generating CoA...</button>
+                          ) : (test.report_generated || reportActionState[test.id] === 'success') ? (
+                            <>
+                              <button
+                                onClick={() => downloadReport(test.id)}
+                                className="rounded bg-green-700 px-2 py-1 text-xs text-white hover:bg-green-800"
+                              >
+                                <span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> Download Report</span>
+                              </button>
+                              <button
+                                onClick={() => generateReport(test.id, true)}
+                                className="text-xs text-slate-400 underline"
+                              >
+                                Regenerate
+                              </button>
+                            </>
+                          ) : reportActionState[test.id] === 'error' ? (
+                            <div className="text-xs text-red-600">
+                              Generation Failed{' '}
+                              <button onClick={() => generateReport(test.id, false)} className="underline">Retry</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => generateReport(test.id, false)}
+                              className="rounded border border-green-600 px-2 py-1 text-xs text-green-700 hover:bg-green-50"
+                            >
+                              Generate Report
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -727,6 +1022,82 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
           </div>
         </div>
       )}
+
+      {selectedResultTest && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setSelectedResultTest(null)} />
+          <div className="h-full w-full max-w-2xl overflow-y-auto bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Test Result</h3>
+              <button onClick={() => setSelectedResultTest(null)} className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div><span className="font-medium text-slate-700">Test:</span> {selectedResultTest.test_name}</div>
+              <div><span className="font-medium text-slate-700">Submitted By:</span> {selectedResultTest.tester_name || 'N/A'}</div>
+              <div><span className="font-medium text-slate-700">Submitted At:</span> {selectedResultTest.submitted_at ? new Date(selectedResultTest.submitted_at).toLocaleString() : 'N/A'}</div>
+              <div>
+                <span className="font-medium text-slate-700">Final Result:</span>{' '}
+                <span className={`rounded px-2 py-1 text-xs font-semibold ${selectedResultTest.result === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {selectedResultTest.result || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <p className="mb-2 font-medium text-slate-700">Measurement & Calculated Data</p>
+                <pre className="max-h-72 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  {JSON.stringify(
+                    typeof selectedResultTest.result_data === 'string'
+                      ? (() => { try { return JSON.parse(selectedResultTest.result_data); } catch { return selectedResultTest.result_data; } })()
+                      : selectedResultTest.result_data,
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
+              <div>
+                <p className="mb-2 font-medium text-slate-700">Photos</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {getPhotosFromTest(selectedResultTest).map((p) => (
+                    <button key={p.slot} className="overflow-hidden rounded border border-slate-200" onClick={() => setLightboxPhoto(`http://localhost:5000${p.url}`)}>
+                      <img src={`http://localhost:5000${p.url}`} alt={p.label} className="h-24 w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {lightboxPhoto && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6" onClick={() => setLightboxPhoto(null)}>
+          <img src={lightboxPhoto} alt="Result photo" className="max-h-full max-w-full rounded border border-white/30" />
+        </div>
+      )}
+
+      <PeriodicScheduleModal
+        isOpen={!!scheduleModalTest}
+        onClose={() => setScheduleModalTest(null)}
+        articleTest={
+          scheduleModalTest
+            ? {
+                id: scheduleModalTest.id,
+                test_name: scheduleModalTest.test_name,
+                test_standard: scheduleModalTest.test_standard,
+                client_requirement: scheduleModalTest.client_requirement
+              }
+            : { id: '', test_name: '', test_standard: '', client_requirement: '' }
+        }
+        defaultTesterId={
+          scheduleModalTest?.assigned_tester_id != null ? String(scheduleModalTest.assigned_tester_id) : null
+        }
+        testers={testers}
+        onSaved={refreshArticleAndSchedules}
+      />
+
+      <PeriodicScheduleDrawer
+        scheduleId={scheduleDrawerId}
+        onClose={() => setScheduleDrawerId(null)}
+        onUpdated={refreshArticleAndSchedules}
+      />
     </div>
   );
 }

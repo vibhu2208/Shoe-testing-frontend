@@ -25,7 +25,7 @@ interface TestRow {
   standard_method: string | null;
   client_requirement: string;
   category: 'Raw Material' | 'Work In Progress' | 'Finished Good';
-  execution_type: 'inhouse' | 'outsource';
+  execution_type: 'inhouse' | 'outsource' | 'both';
   inhouse_test_id: string | null;
   vendor_name: string;
   vendor_contact: string;

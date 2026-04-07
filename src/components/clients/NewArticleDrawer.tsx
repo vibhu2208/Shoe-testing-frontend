@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
 
 interface NewArticleDrawerProps {
@@ -25,7 +25,7 @@ interface TestRow {
   standard_method: string | null;
   client_requirement: string;
   category: 'Raw Material' | 'Work In Progress' | 'Finished Good';
-  execution_type: 'inhouse' | 'outsource';
+  execution_type: 'inhouse' | 'outsource' | 'both';
   inhouse_test_id: string | null;
   vendor_name: string;
   vendor_contact: string;
@@ -65,6 +65,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -96,7 +97,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       const formData = new FormData();
       formData.append('file', document);
       formData.append('fileName', document.name);
-      formData.append('clientId', 'temp-client-id'); // Will be replaced when article is created
+      formData.append('clientId', String(clientId));
 
       const uploadResponse = await fetch('http://localhost:5000/api/documents/upload-file', {
         method: 'POST',
@@ -107,7 +108,8 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Failed to upload document');
+        const uploadError = await uploadResponse.json().catch(() => null);
+        throw new Error(uploadError?.error || 'Failed to upload document');
       }
 
       const uploadResult = await uploadResponse.json();
@@ -243,6 +245,41 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       setError(error instanceof Error ? error.message : 'Failed to create article');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleDownloadBulkTemplate = () => {
+    window.open(`http://localhost:5000/api/clients/${clientId}/articles/bulk-template`, '_blank');
+  };
+
+  const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsBulkUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`http://localhost:5000/api/clients/${clientId}/articles/bulk-upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Bulk upload failed');
+      }
+
+      setSuccess(`Bulk upload successful: ${result.createdCount} articles created`);
+      setTimeout(() => {
+        onClose();
+        onArticleCreated?.();
+      }, 1200);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Bulk upload failed');
+    } finally {
+      setIsBulkUploading(false);
+      event.target.value = '';
     }
   };
 
@@ -537,12 +574,32 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
             <h2 className="text-xl font-semibold text-slate-900">Create New Article</h2>
             <p className="text-sm text-slate-600">Client: {clientName} • Step {currentStep} of {steps.length}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownloadBulkTemplate}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" />
+              Template
+            </button>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
+              <Upload className="h-4 w-4" />
+              {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleBulkUpload}
+                className="hidden"
+                disabled={isBulkUploading}
+              />
+            </label>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Progress Steps */}

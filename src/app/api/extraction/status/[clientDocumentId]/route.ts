@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clientDocumentId: string } }
+  { params }: { params: Promise<{ clientDocumentId: string }> }
 ) {
   try {
-    const { clientDocumentId } = params;
+    const { clientDocumentId } = await params;
 
     if (!clientDocumentId) {
       return NextResponse.json(

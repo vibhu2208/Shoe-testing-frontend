@@ -39,9 +39,25 @@ export default function TesterDashboard() {
     fetchMyTests();
   }, []);
 
+  const getCurrentTesterId = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return null;
+      const parsedUser = JSON.parse(storedUser);
+      return parsedUser?.id ? String(parsedUser.id) : null;
+    } catch (error) {
+      console.error('Failed to read logged-in tester from storage:', error);
+      return null;
+    }
+  };
+
   const fetchMyTests = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/tester/my-tests');
+      const testerId = getCurrentTesterId();
+      const response = await fetch('http://localhost:5000/api/tester/my-tests', {
+        headers: testerId ? { 'x-user-id': testerId } : {},
+      });
       if (response.ok) {
         const testsData = await response.json();
         setTests(testsData);
@@ -57,8 +73,10 @@ export default function TesterDashboard() {
 
   const handleStartTest = async (testId: string) => {
     try {
+      const testerId = getCurrentTesterId();
       const response = await fetch(`http://localhost:5000/api/tester/my-tests/${testId}/start`, {
         method: 'POST',
+        headers: testerId ? { 'x-user-id': testerId } : {},
       });
 
       if (response.ok) {

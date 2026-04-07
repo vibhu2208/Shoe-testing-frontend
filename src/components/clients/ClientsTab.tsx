@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Building2, MapPin, Mail, Phone, MoreVertical, Eye, FileText } from 'lucide-react';
+import { Plus, Building2, MapPin, Mail, Phone, MoreVertical, Eye, FileText, CheckCircle } from 'lucide-react';
 import OnboardClientDrawer from '@/components/clients/OnboardClientDrawer';
 import NewArticleDrawer from '@/components/clients/NewArticleDrawer';
 import ClientArticles from '@/components/clients/ClientArticles';
@@ -30,12 +30,22 @@ export default function ClientsTab() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statsData, setStatsData] = useState<{
+    totalArticles: number;
+    pendingTests: number;
+    completedTests: number;
+    reportsSent: number;
+  } | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [viewingArticles, setViewingArticles] = useState<{ clientId: number; clientName: string } | null>(null);
 
   // Fetch clients from API
   const fetchClients = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/clients');
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/clients', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (response.ok) {
         const clientsData = await response.json();
         setClients(clientsData);
@@ -49,8 +59,34 @@ export default function ClientsTab() {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      setLoadingStats(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/clients/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        setStatsData({
+          totalArticles: Number(payload.totalArticles || 0),
+          pendingTests: Number(payload.pendingTests || 0),
+          completedTests: Number(payload.completedTests || 0),
+          reportsSent: Number(payload.reportsSent || 0),
+        });
+      } else {
+        console.error('Failed to fetch dashboard stats');
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
+    fetchStats();
   }, []);
 
   // Close dropdown when clicking outside
@@ -110,10 +146,13 @@ export default function ClientsTab() {
   const handleClientCreated = () => {
     // Refresh clients list after new client is created
     fetchClients();
+    fetchStats();
   };
 
   const handleBackToClients = () => {
     setViewingArticles(null);
+    fetchClients();
+    fetchStats();
   };
 
   const handleNewArticleClose = () => {
@@ -124,14 +163,10 @@ export default function ClientsTab() {
   const handleArticleCreated = () => {
     // Refresh clients list to update article counts
     fetchClients();
+    fetchStats();
   };
 
-  const stats = {
-    totalClients: clients.length,
-    totalArticles: clients.reduce((sum, client) => sum + (client.total_orders || 0), 0), // Reusing total_orders field for articles
-    pendingTests: clients.reduce((sum, client) => sum + (client.total_tests || 0), 0),
-    reportsSent: clients.reduce((sum, client) => sum + (client.total_reports || 0), 0)
-  };
+  const totalClients = clients.length;
 
   return (
     <>
@@ -144,12 +179,12 @@ export default function ClientsTab() {
       ) : (
         <>
           {/* Stats Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Clients</p>
-              <p className="text-3xl font-bold text-slate-900">{stats.totalClients}</p>
+              <p className="text-3xl font-bold text-slate-900">{totalClients}</p>
             </div>
             <div className="p-3 bg-slate-100 rounded-lg">
               <Building2 className="w-6 h-6 text-slate-600" />
@@ -161,7 +196,9 @@ export default function ClientsTab() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Articles</p>
-              <p className="text-3xl font-bold text-slate-900">{stats.totalArticles}</p>
+              <p className="text-3xl font-bold text-slate-900">
+                {loadingStats ? '—' : statsData?.totalArticles ?? 0}
+              </p>
             </div>
             <div className="p-3 bg-slate-100 rounded-lg">
               <FileText className="w-6 h-6 text-slate-600" />
@@ -173,7 +210,9 @@ export default function ClientsTab() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Pending Tests</p>
-              <p className="text-3xl font-bold text-slate-900">{stats.pendingTests}</p>
+              <p className="text-3xl font-bold text-slate-900">
+                {loadingStats ? '—' : statsData?.pendingTests ?? 0}
+              </p>
             </div>
             <div className="p-3 bg-slate-100 rounded-lg">
               <FileText className="w-6 h-6 text-slate-600" />
@@ -184,8 +223,24 @@ export default function ClientsTab() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-slate-600">Completed Tests</p>
+              <p className="text-3xl font-bold text-slate-900">
+                {loadingStats ? '—' : statsData?.completedTests ?? 0}
+              </p>
+            </div>
+            <div className="p-3 bg-slate-100 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-slate-600">Reports Sent</p>
-              <p className="text-3xl font-bold text-slate-900">{stats.reportsSent}</p>
+              <p className="text-3xl font-bold text-slate-900">
+                {loadingStats ? '—' : statsData?.reportsSent ?? 0}
+              </p>
             </div>
             <div className="p-3 bg-slate-100 rounded-lg">
               <FileText className="w-6 h-6 text-slate-600" />

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Building2, User, CheckCircle, Plus, Trash2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Building2, User, CheckCircle, Plus, Trash2, Upload, Download } from 'lucide-react';
 
 interface OnboardClientDrawerProps {
   isOpen: boolean;
@@ -48,6 +48,7 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
     },
     secondaryContacts: []
   });
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
 
   const steps = [
     { number: 1, title: 'Company Information', icon: Building2 },
@@ -123,6 +124,39 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
     } catch (error) {
       console.error('Error creating client:', error);
       alert('Failed to create client. Please try again.');
+    }
+  };
+
+  const handleDownloadBulkTemplate = () => {
+    window.open('http://localhost:5000/api/clients/bulk-template', '_blank');
+  };
+
+  const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsBulkUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:5000/api/clients/bulk-upload', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Bulk upload failed');
+      }
+
+      alert(`Bulk upload successful: ${result.createdCount} clients created`);
+      onClientCreated?.();
+      onClose();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Bulk upload failed');
+    } finally {
+      setIsBulkUploading(false);
+      event.target.value = '';
     }
   };
 
@@ -486,12 +520,32 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
             <h2 className="text-xl font-semibold text-slate-900">Onboard New Client</h2>
             <p className="text-sm text-slate-600">Step {currentStep} of {steps.length}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownloadBulkTemplate}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" />
+              Template
+            </button>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
+              <Upload className="h-4 w-4" />
+              {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleBulkUpload}
+                className="hidden"
+                disabled={isBulkUploading}
+              />
+            </label>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Progress Steps */}

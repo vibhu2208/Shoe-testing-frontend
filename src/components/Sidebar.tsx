@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { TestTube, Users, Settings, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   currentPage: string;
@@ -10,16 +10,15 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPage }: SidebarProps) {
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
+    logout();
   };
 
   const navigation = [
     { name: 'Tests', href: '/test-library', icon: TestTube, key: 'tests' },
-    { name: 'Users', href: '/admin', icon: Users, key: 'users' },
+    { name: 'Users', href: '/admin/users', icon: Users, key: 'users' },
     { name: 'Settings', href: '/settings', icon: Settings, key: 'settings' },
   ];
 

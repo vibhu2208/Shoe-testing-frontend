@@ -568,10 +568,10 @@ const getStatusIcon = (status: string | null) => {
                           test.assigned_tester_id ? (
                             <div>
                               <p className="text-sm font-medium text-slate-900">
-                                {testers.find(t => t.id.toString() === test.assigned_tester_id.toString())?.name || 'Unknown Tester'}
+                                {testers.find((t) => String(t.id) === String(test.assigned_tester_id))?.name || 'Unknown Tester'}
                               </p>
                               <p className="text-xs text-slate-500">
-                                {testers.find(t => t.id.toString() === test.assigned_tester_id.toString())?.department || ''}
+                                {testers.find((t) => String(t.id) === String(test.assigned_tester_id))?.department || ''}
                               </p>
                             </div>
                           ) : (

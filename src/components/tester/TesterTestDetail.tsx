@@ -36,9 +36,25 @@ export default function TesterTestDetail({ orderTestId, onBack }: TesterTestDeta
     fetchTestDetail();
   }, [orderTestId]);
 
+  const getCurrentTesterId = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return null;
+      const parsedUser = JSON.parse(storedUser);
+      return parsedUser?.id ? String(parsedUser.id) : null;
+    } catch (error) {
+      console.error('Failed to read logged-in tester from storage:', error);
+      return null;
+    }
+  };
+
   const fetchTestDetail = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${orderTestId}`);
+      const testerId = getCurrentTesterId();
+      const response = await fetch(`http://localhost:5000/api/tester/my-tests/${orderTestId}`, {
+        headers: testerId ? { 'x-user-id': testerId } : {},
+      });
       if (response.ok) {
         const testData = await response.json();
         setTest(testData);
@@ -59,8 +75,10 @@ export default function TesterTestDetail({ orderTestId, onBack }: TesterTestDeta
     if (!test) return;
     
     try {
+      const testerId = getCurrentTesterId();
       const response = await fetch(`http://localhost:5000/api/tester/my-tests/${test.id}/start`, {
         method: 'POST',
+        headers: testerId ? { 'x-user-id': testerId } : {},
       });
 
       if (response.ok) {

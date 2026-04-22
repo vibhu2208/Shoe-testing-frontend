@@ -2,7 +2,7 @@
 
 import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
-import { User, Search, Filter, LogOut, RotateCw } from 'lucide-react';
+import { User, Search, Filter, LogOut, RotateCw, CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, Clock3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -62,6 +62,14 @@ export default function TesterDashboardPage() {
   const [sortBy, setSortBy] = useState<
     'deadline' | 'test_name' | 'status' | 'assigned_date'
   >('deadline');
+  const [testerSection, setTesterSection] = useState<'upcoming' | 'completed' | 'calendar'>(
+    'upcoming'
+  );
+  const [calendarView, setCalendarView] = useState<'month' | 'agenda'>('month');
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   useEffect(() => {
     fetchAssignedTests();
@@ -70,6 +78,15 @@ export default function TesterDashboardPage() {
   useEffect(() => {
     calculateStats();
   }, [tests]);
+
+  useEffect(() => {
+    if (testerSection === 'completed') {
+      setFilter('all');
+    }
+    if (testerSection === 'upcoming' && filter === 'submitted') {
+      setFilter('all');
+    }
+  }, [testerSection, filter]);
 
   const getCurrentTesterId = (): string | null => {
     if (typeof window === 'undefined') return null;
@@ -227,7 +244,58 @@ export default function TesterDashboardPage() {
   const periodicDueDate = (t: AssignedTest): string | null =>
     t.periodic_run_due_date || t.periodic_schedule_next_due || t.test_deadline;
 
-  const filteredAndSortedTests = tests
+  const normalizeToDateOnly = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  const buildTestByDateMap = () => {
+    const byDate = new Map<string, AssignedTest[]>();
+    for (const test of tests) {
+      if (test.status === 'submitted') continue;
+      const dueStr = periodicDueDate(test) || test.test_deadline;
+      if (!dueStr) continue;
+
+      const dueDate = normalizeToDateOnly(new Date(dueStr));
+      const dateKey = dueDate.toISOString().slice(0, 10);
+      const existing = byDate.get(dateKey) || [];
+      existing.push(test);
+      byDate.set(dateKey, existing);
+    }
+    return byDate;
+  };
+
+  const buildMonthCells = () => {
+    const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const endOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+
+    const startOffset = startOfMonth.getDay();
+    const cells: Date[] = [];
+
+    for (let i = startOffset; i > 0; i--) {
+      const d = new Date(startOfMonth);
+      d.setDate(startOfMonth.getDate() - i);
+      cells.push(d);
+    }
+
+    for (let day = 1; day <= endOfMonth.getDate(); day++) {
+      cells.push(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day));
+    }
+
+    while (cells.length % 7 !== 0) {
+      const d = new Date(endOfMonth);
+      d.setDate(endOfMonth.getDate() + (cells.length % 7));
+      cells.push(d);
+    }
+
+    return cells;
+  };
+
+  const sectionTests = tests.filter((test) => {
+    if (testerSection === 'completed') return test.status === 'submitted';
+    if (testerSection === 'upcoming') return test.status !== 'submitted';
+    return true;
+  });
+
+  const filteredAndSortedTests = sectionTests
     .filter((test) => {
       if (filter === 'periodic') {
         return isPeriodicTest(test);
@@ -283,6 +351,28 @@ export default function TesterDashboardPage() {
       }
     });
 
+  const testsByDate = buildTestByDateMap();
+  const monthCells = buildMonthCells();
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const todayKey = normalizeToDateOnly(new Date()).toISOString().slice(0, 10);
+  const completedCount = tests.filter((test) => test.status === 'submitted').length;
+  const upcomingCount = tests.filter((test) => test.status !== 'submitted').length;
+  const agendaDays = [0, 1, 2].map((offset) => {
+    const d = normalizeToDateOnly(new Date());
+    d.setDate(d.getDate() + offset);
+    const key = d.toISOString().slice(0, 10);
+    return {
+      key,
+      label: offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : 'Day After',
+      dateText: d.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+      }),
+      tests: testsByDate.get(key) || [],
+    };
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -323,6 +413,234 @@ export default function TesterDashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <section className="mb-6">
+          <div className="relative overflow-hidden rounded-2xl border border-green-900/15 bg-gradient-to-r from-white via-green-50/40 to-white shadow-sm">
+            <div className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-green-900/8 hidden sm:block" />
+            <div className="pointer-events-none absolute inset-y-0 left-2/3 w-px bg-green-900/8 hidden sm:block" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0.5 p-1.5">
+              <button
+                type="button"
+                onClick={() => setTesterSection('upcoming')}
+                className={`group relative px-4 py-3.5 rounded-xl text-left border transition-all duration-200 ${
+                  testerSection === 'upcoming'
+                    ? 'bg-gradient-to-r from-green-700 to-green-600 text-white border-green-700 shadow-sm'
+                    : 'bg-white/90 text-black border-black/10 hover:bg-green-50/80 hover:border-green-700/20'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
+                      testerSection === 'upcoming' ? 'bg-white/20' : 'bg-green-100 text-green-800'
+                    }`}
+                  >
+                    <Clock3 className="h-4 w-4" aria-hidden />
+                  </span>
+                  <div className="text-sm font-semibold tracking-tight">Upcoming Tests</div>
+                </div>
+                <div className={`text-xs ${testerSection === 'upcoming' ? 'text-white/90' : 'text-black/60'}`}>
+                  {upcomingCount} pending or in progress
+                </div>
+                {testerSection === 'upcoming' && (
+                  <div className="absolute left-4 right-4 -bottom-px h-0.5 bg-white/80 rounded-full" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTesterSection('completed')}
+                className={`group relative px-4 py-3.5 rounded-xl text-left border transition-all duration-200 ${
+                  testerSection === 'completed'
+                    ? 'bg-gradient-to-r from-green-700 to-green-600 text-white border-green-700 shadow-sm'
+                    : 'bg-white/90 text-black border-black/10 hover:bg-green-50/80 hover:border-green-700/20'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
+                      testerSection === 'completed' ? 'bg-white/20' : 'bg-green-100 text-green-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  </span>
+                  <div className="text-sm font-semibold tracking-tight">Completed Tests</div>
+                </div>
+                <div className={`text-xs ${testerSection === 'completed' ? 'text-white/90' : 'text-black/60'}`}>
+                  {completedCount} submitted tests
+                </div>
+                {testerSection === 'completed' && (
+                  <div className="absolute left-4 right-4 -bottom-px h-0.5 bg-white/80 rounded-full" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTesterSection('calendar')}
+                className={`group relative px-4 py-3.5 rounded-xl text-left border transition-all duration-200 ${
+                  testerSection === 'calendar'
+                    ? 'bg-gradient-to-r from-green-700 to-green-600 text-white border-green-700 shadow-sm'
+                    : 'bg-white/90 text-black border-black/10 hover:bg-green-50/80 hover:border-green-700/20'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
+                      testerSection === 'calendar' ? 'bg-white/20' : 'bg-green-100 text-green-800'
+                    }`}
+                  >
+                    <CalendarDays className="h-4 w-4" aria-hidden />
+                  </span>
+                  <div className="text-sm font-semibold tracking-tight">Calendar</div>
+                </div>
+                <div className={`text-xs ${testerSection === 'calendar' ? 'text-white/90' : 'text-black/60'}`}>
+                  Date-wise schedule view
+                </div>
+                {testerSection === 'calendar' && (
+                  <div className="absolute left-4 right-4 -bottom-px h-0.5 bg-white/80 rounded-full" />
+                )}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {testerSection === 'calendar' && (
+        <section className="mb-8">
+          <div className="bg-white rounded-lg border border-black/10 p-4 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-green-700" aria-hidden />
+                <h2 className="text-lg font-semibold text-black">Test Calendar</h2>
+              </div>
+              <div className="inline-flex items-center rounded-lg border border-black/15 p-1 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setCalendarView('month')}
+                  className={`px-3 py-1.5 text-sm rounded-md ${
+                    calendarView === 'month'
+                      ? 'bg-green-700 text-white'
+                      : 'text-black hover:bg-green-50'
+                  }`}
+                >
+                  Date-wise Calendar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarView('agenda')}
+                  className={`px-3 py-1.5 text-sm rounded-md ${
+                    calendarView === 'agenda'
+                      ? 'bg-green-700 text-white'
+                      : 'text-black hover:bg-green-50'
+                  }`}
+                >
+                  Today / Next Days
+                </button>
+              </div>
+            </div>
+            {calendarView === 'month' ? (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+                    }
+                    className="inline-flex items-center gap-1 px-2 py-1.5 border border-black/15 rounded-md text-sm hover:bg-green-50"
+                  >
+                    <ChevronLeft className="w-4 h-4" aria-hidden />
+                    Prev
+                  </button>
+                  <div className="font-semibold text-black">
+                    {calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+                    }
+                    className="inline-flex items-center gap-1 px-2 py-1.5 border border-black/15 rounded-md text-sm hover:bg-green-50"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" aria-hidden />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2">
+                  {dayLabels.map((label) => (
+                    <div key={label} className="text-xs font-semibold text-black/60 text-center py-1">
+                      {label}
+                    </div>
+                  ))}
+                  {monthCells.map((cellDate) => {
+                    const cellKey = normalizeToDateOnly(cellDate).toISOString().slice(0, 10);
+                    const dayTests = testsByDate.get(cellKey) || [];
+                    const inCurrentMonth = cellDate.getMonth() === calendarMonth.getMonth();
+                    const isToday = cellKey === todayKey;
+
+                    return (
+                      <div
+                        key={cellKey}
+                        className={`min-h-[110px] rounded-lg border p-2 ${
+                          isToday
+                            ? 'border-green-700 bg-green-50/70'
+                            : inCurrentMonth
+                              ? 'border-black/10 bg-white'
+                              : 'border-black/10 bg-black/[0.03]'
+                        }`}
+                      >
+                        <div className={`text-xs font-semibold ${inCurrentMonth ? 'text-black' : 'text-black/40'}`}>
+                          {cellDate.getDate()}
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {dayTests.slice(0, 2).map((test) => (
+                            <button
+                              type="button"
+                              key={`${cellKey}-${test.id}`}
+                              onClick={() => router.push(`/tester/tests/${test.id}`)}
+                              className="block w-full text-left rounded border border-green-800/20 bg-green-100/60 px-1.5 py-1 text-[11px] text-black truncate hover:bg-green-100"
+                              title={test.test_name}
+                            >
+                              {test.test_name}
+                            </button>
+                          ))}
+                          {dayTests.length > 2 && (
+                            <div className="text-[11px] text-black/60">+{dayTests.length - 2} more</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {agendaDays.map((bucket) => (
+                  <div key={bucket.key} className="rounded-lg border border-green-700/30 bg-green-50/70 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-black">{bucket.label}</div>
+                      <span className="text-xs text-black/70">{bucket.dateText}</span>
+                    </div>
+                    {bucket.tests.length === 0 ? (
+                      <p className="text-xs text-black/60">No tests due</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {bucket.tests.map((test) => (
+                        <button
+                          type="button"
+                          key={test.id}
+                          onClick={() => router.push(`/tester/tests/${test.id}`)}
+                          className="w-full text-left rounded border border-black/10 bg-white px-2 py-1.5 hover:bg-green-50"
+                        >
+                          <div className="text-xs font-medium text-black truncate">{test.test_name}</div>
+                          <div className="text-[11px] text-black/60 truncate">{test.article_number}</div>
+                        </button>
+                      ))}
+                    </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <div className="bg-white p-4 rounded-lg border border-black/10 shadow-sm">
             <div className="text-2xl font-bold text-black">{stats.total}</div>
@@ -354,6 +672,7 @@ export default function TesterDashboardPage() {
           </div>
         </div>
 
+        {testerSection !== 'calendar' && (
         <div className="bg-white rounded-lg border border-black/10 p-4 mb-6 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -379,7 +698,7 @@ export default function TesterDashboardPage() {
                   <option value="all">All</option>
                   <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="submitted">Submitted</option>
+                  {testerSection === 'completed' && <option value="submitted">Submitted</option>}
                   <option value="overdue">Overdue</option>
                   <option value="periodic">Periodic only</option>
                 </select>
@@ -404,7 +723,9 @@ export default function TesterDashboardPage() {
             </div>
           </div>
         </div>
+        )}
 
+        {testerSection !== 'calendar' && (
         <div className="space-y-4">
           {filteredAndSortedTests.length === 0 ? (
             <div className="bg-white rounded-lg border border-black/10 p-8 text-center shadow-sm">
@@ -580,6 +901,7 @@ export default function TesterDashboardPage() {
             })
           )}
         </div>
+        )}
       </main>
     </div>
   );

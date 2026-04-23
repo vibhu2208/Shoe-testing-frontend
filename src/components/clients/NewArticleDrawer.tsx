@@ -8,8 +8,8 @@ import ExtractionReviewTable from './ExtractionReviewTable';
 interface NewArticleDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  clientId: number;
-  clientName: string;
+  clientId?: number | null;
+  clientName?: string | null;
   onArticleCreated?: () => void;
 }
 
@@ -52,7 +52,7 @@ interface ExtractedData {
   };
 }
 
-export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName, onArticleCreated }: NewArticleDrawerProps) {
+export default function NewArticleDrawer({ isOpen, onClose, clientId = null, clientName = null, onArticleCreated }: NewArticleDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [articleNumber, setArticleNumber] = useState('');
   const [articleName, setArticleName] = useState('');
@@ -67,6 +67,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const isStandaloneMode = !clientId;
 
   if (!isOpen) return null;
 
@@ -98,7 +99,9 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
       const formData = new FormData();
       formData.append('file', document);
       formData.append('fileName', document.name);
-      formData.append('clientId', String(clientId));
+      if (clientId) {
+        formData.append('clientId', String(clientId));
+      }
 
       const uploadResponse = await fetch(publicApiUrl('/api/documents/upload-file'), {
         method: 'POST',
@@ -221,7 +224,8 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
         })) : []
       };
 
-      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/articles`), {
+      const endpoint = clientId ? `/api/clients/${clientId}/articles` : '/api/articles';
+      const response = await fetch(publicApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -250,10 +254,20 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
   };
 
   const handleDownloadBulkTemplate = () => {
+    if (!clientId) {
+      setError('Bulk template is available only when creating for a specific client');
+      return;
+    }
     window.open(publicApiUrl(`/api/clients/${clientId}/articles/bulk-template`), '_blank');
   };
 
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!clientId) {
+      setError('Bulk upload is available only when creating for a specific client');
+      event.target.value = '';
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -508,7 +522,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-slate-600">Client:</span>
-                  <span className="ml-2 font-medium">{clientName}</span>
+                  <span className="ml-2 font-medium">{clientName || 'No client (Standalone)'}</span>
                 </div>
                 <div>
                   <span className="text-slate-600">Article Number:</span>
@@ -573,27 +587,33 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId, clientName
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Create New Article</h2>
-            <p className="text-sm text-slate-600">Client: {clientName} • Step {currentStep} of {steps.length}</p>
+            <p className="text-sm text-slate-600">
+              {isStandaloneMode ? 'Standalone Article' : `Client: ${clientName}`} • Step {currentStep} of {steps.length}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleDownloadBulkTemplate}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <Download className="h-4 w-4" />
-              Template
-            </button>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
-              <Upload className="h-4 w-4" />
-              {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleBulkUpload}
-                className="hidden"
-                disabled={isBulkUploading}
-              />
-            </label>
+            {!isStandaloneMode && (
+              <>
+                <button
+                  onClick={handleDownloadBulkTemplate}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Template
+                </button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">
+                  <Upload className="h-4 w-4" />
+                  {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleBulkUpload}
+                    className="hidden"
+                    disabled={isBulkUploading}
+                  />
+                </label>
+              </>
+            )}
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"

@@ -2,7 +2,7 @@
 
 import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Package, Eye, MoreVertical, Calendar, FileText, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Package, Eye, MoreVertical } from 'lucide-react';
 import ArticleDetails from './ArticleDetails';
 
 interface Article {
@@ -21,12 +21,13 @@ interface Article {
 }
 
 interface ClientArticlesProps {
-  clientId: number;
-  clientName: string;
+  clientId?: number;
+  clientName?: string;
+  standaloneOnly?: boolean;
   onBack: () => void;
 }
 
-export default function ClientArticles({ clientId, clientName, onBack }: ClientArticlesProps) {
+export default function ClientArticles({ clientId, clientName, standaloneOnly = false, onBack }: ClientArticlesProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingArticle, setViewingArticle] = useState<{ articleId: number; articleNumber: string } | null>(null);
@@ -34,7 +35,7 @@ export default function ClientArticles({ clientId, clientName, onBack }: ClientA
 
   useEffect(() => {
     fetchArticles();
-  }, [clientId]);
+  }, [clientId, standaloneOnly]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -51,10 +52,17 @@ export default function ClientArticles({ clientId, clientName, onBack }: ClientA
 
   const fetchArticles = async () => {
     try {
-      const response = await fetch(publicApiUrl(`/api/clients/${clientId}/articles`));
+      const endpoint = standaloneOnly
+        ? '/api/articles'
+        : `/api/clients/${clientId}/articles`;
+      const response = await fetch(publicApiUrl(endpoint));
       if (response.ok) {
         const articlesData = await response.json();
-        setArticles(articlesData);
+        setArticles(
+          standaloneOnly
+            ? (articlesData || []).filter((article: any) => !article.client_id)
+            : articlesData
+        );
       } else {
         console.error('Failed to fetch articles');
       }
@@ -99,9 +107,9 @@ export default function ClientArticles({ clientId, clientName, onBack }: ClientA
   if (viewingArticle) {
     return (
       <ArticleDetails
-        clientId={clientId}
+        clientId={clientId || 0}
         articleId={viewingArticle.articleId}
-        clientName={clientName}
+        clientName={clientName || 'Standalone Articles'}
         onBack={handleBackToArticles}
       />
     );
@@ -121,64 +129,7 @@ export default function ClientArticles({ clientId, clientName, onBack }: ClientA
           </button>
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Articles</h2>
-            <p className="text-slate-600">{clientName}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Total Articles</p>
-              <p className="text-3xl font-bold text-slate-900">{articles.length}</p>
-            </div>
-            <div className="p-3 bg-slate-100 rounded-lg">
-              <Package className="w-6 h-6 text-slate-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Active Articles</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {articles.filter(a => a.status === 'active').length}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Total Tests</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {articles.reduce((sum, article) => sum + (article.total_tests || 0), 0)}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Test Batches</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {articles.reduce((sum, article) => sum + (article.total_batches || 0), 0)}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Calendar className="w-6 h-6 text-purple-600" />
-            </div>
+            <p className="text-slate-600">{clientName || 'Standalone Articles'}</p>
           </div>
         </div>
       </div>

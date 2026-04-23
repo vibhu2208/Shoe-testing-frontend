@@ -24,12 +24,26 @@ interface Client {
   updated_at: string;
 }
 
+interface StandaloneArticle {
+  id: number;
+  article_number: string;
+  article_name: string;
+  material_type: string | null;
+  color: string | null;
+  status: 'active' | 'inactive';
+  total_tests: number;
+  total_batches: number;
+  created_at: string;
+}
+
 export default function ClientsTab() {
   const [isOnboardDrawerOpen, setIsOnboardDrawerOpen] = useState(false);
   const [isNewArticleDrawerOpen, setIsNewArticleDrawerOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<{ id: number; name: string } | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
+  const [standaloneArticles, setStandaloneArticles] = useState<StandaloneArticle[]>([]);
+  const [loadingStandaloneArticles, setLoadingStandaloneArticles] = useState(true);
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<{
     totalArticles: number;
@@ -39,6 +53,7 @@ export default function ClientsTab() {
   } | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [viewingArticles, setViewingArticles] = useState<{ clientId: number; clientName: string } | null>(null);
+  const [viewingStandaloneArticles, setViewingStandaloneArticles] = useState(false);
 
   // Fetch clients from API
   const fetchClients = async () => {
@@ -85,9 +100,30 @@ export default function ClientsTab() {
     }
   };
 
+  const fetchStandaloneArticles = async () => {
+    try {
+      setLoadingStandaloneArticles(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(publicApiUrl('/api/articles'), {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStandaloneArticles((data || []).filter((article: any) => !article.client_id));
+      } else {
+        console.error('Failed to fetch standalone articles');
+      }
+    } catch (error) {
+      console.error('Error fetching standalone articles:', error);
+    } finally {
+      setLoadingStandaloneArticles(false);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
     fetchStats();
+    fetchStandaloneArticles();
   }, []);
 
   // Close dropdown when clicking outside
@@ -137,6 +173,16 @@ export default function ClientsTab() {
     setActiveDropdown(null);
   };
 
+  const handleCreateStandaloneArticle = () => {
+    setSelectedClient(null);
+    setIsNewArticleDrawerOpen(true);
+  };
+
+  const handleViewStandaloneArticles = () => {
+    setViewingStandaloneArticles(true);
+    setActiveDropdown(null);
+  };
+
   const handleDeactivateClient = (clientId: number) => {
     console.log('🚫 Deactivating client:', clientId);
     alert(`Deactivating client ${clientId} - Feature coming soon!`);
@@ -152,8 +198,10 @@ export default function ClientsTab() {
 
   const handleBackToClients = () => {
     setViewingArticles(null);
+    setViewingStandaloneArticles(false);
     fetchClients();
     fetchStats();
+    fetchStandaloneArticles();
   };
 
   const handleNewArticleClose = () => {
@@ -165,6 +213,7 @@ export default function ClientsTab() {
     // Refresh clients list to update article counts
     fetchClients();
     fetchStats();
+    fetchStandaloneArticles();
   };
 
   const totalClients = clients.length;
@@ -175,6 +224,12 @@ export default function ClientsTab() {
         <ClientArticles
           clientId={viewingArticles.clientId}
           clientName={viewingArticles.clientName}
+          onBack={handleBackToClients}
+        />
+      ) : viewingStandaloneArticles ? (
+        <ClientArticles
+          standaloneOnly
+          clientName="Standalone Articles"
           onBack={handleBackToClients}
         />
       ) : (
@@ -253,13 +308,29 @@ export default function ClientsTab() {
       {/* Header with Onboard Button */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-slate-900">Client Directory</h2>
-        <button
-          onClick={() => setIsOnboardDrawerOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Onboard New Client</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCreateStandaloneArticle}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Standalone Article</span>
+          </button>
+          <button
+            onClick={handleViewStandaloneArticles}
+            className="flex items-center space-x-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+            <span>View Standalone Articles</span>
+          </button>
+          <button
+            onClick={() => setIsOnboardDrawerOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Onboard New Client</span>
+          </button>
+        </div>
       </div>
 
       {/* Client Cards Grid */}
@@ -397,6 +468,67 @@ export default function ClientsTab() {
         </div>
       )}
 
+      {/* Standalone Articles Directory */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-900">Standalone Articles</h3>
+          <button
+            onClick={handleViewStandaloneArticles}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            View all
+          </button>
+        </div>
+
+        {loadingStandaloneArticles ? (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+            <p className="text-slate-600">Loading standalone articles...</p>
+          </div>
+        ) : standaloneArticles.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {standaloneArticles.slice(0, 6).map((article) => (
+              <div key={article.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">{article.article_number}</h4>
+                    <p className="text-sm text-slate-600">{article.article_name}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    article.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {article.status === 'active' ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="text-sm text-slate-600 mb-4 space-y-1">
+                  <p>Material: {article.material_type || 'Not specified'}</p>
+                  <p>Color: {article.color || 'Not specified'}</p>
+                  <p>Tests: {article.total_tests || 0} | Batches: {article.total_batches || 0}</p>
+                </div>
+                <button
+                  onClick={handleViewStandaloneArticles}
+                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>View Details</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+            <h4 className="text-base font-medium text-slate-900 mb-2">No standalone articles yet</h4>
+            <p className="text-slate-600 mb-4">Create standalone articles that are not linked to any client.</p>
+            <button
+              onClick={handleCreateStandaloneArticle}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Standalone Article</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Onboard Client Drawer */}
           <OnboardClientDrawer 
             isOpen={isOnboardDrawerOpen}
@@ -405,15 +537,13 @@ export default function ClientsTab() {
           />
 
           {/* New Article Drawer */}
-          {selectedClient && (
-            <NewArticleDrawer
-              isOpen={isNewArticleDrawerOpen}
-              onClose={handleNewArticleClose}
-              clientId={selectedClient.id}
-              clientName={selectedClient.name}
-              onArticleCreated={handleArticleCreated}
-            />
-          )}
+          <NewArticleDrawer
+            isOpen={isNewArticleDrawerOpen}
+            onClose={handleNewArticleClose}
+            clientId={selectedClient?.id}
+            clientName={selectedClient?.name}
+            onArticleCreated={handleArticleCreated}
+          />
         </>
       )}
     </>

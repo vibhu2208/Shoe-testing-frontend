@@ -1,7 +1,7 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Building2, User, CheckCircle, Plus, Trash2, Upload, Download } from 'lucide-react';
 
 interface OnboardClientDrawerProps {
@@ -32,6 +32,8 @@ interface ClientData {
   }>;
 }
 
+type ToastType = 'success' | 'error';
+
 export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }: OnboardClientDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [clientData, setClientData] = useState<ClientData>({
@@ -50,6 +52,17 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
     secondaryContacts: []
   });
   const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const steps = [
     { number: 1, title: 'Company Information', icon: Building2 },
@@ -93,7 +106,7 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
     try {
       // Validate required fields
       if (!clientData.companyName || !clientData.primaryContact.name || !clientData.primaryContact.email) {
-        alert('Please fill in all required fields');
+        showToast('Please fill in all required fields', 'error');
         return;
       }
 
@@ -115,16 +128,20 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
       });
 
       if (response.ok) {
-        alert('Client created successfully!');
+        showToast('Client created successfully!', 'success');
         onClientCreated?.();
         onClose();
       } else {
-        const error = await response.json();
-        alert(`Failed to create client: ${error.error}`);
+        const errorData = await response.json().catch(() => null);
+        const reason = errorData?.error || 'Failed to create client';
+        showToast(reason, 'error');
       }
     } catch (error) {
       console.error('Error creating client:', error);
-      alert('Failed to create client. Please try again.');
+      showToast(
+        error instanceof Error ? error.message : 'Failed to create client. Please try again.',
+        'error'
+      );
     }
   };
 
@@ -150,11 +167,11 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
         throw new Error(result.error || 'Bulk upload failed');
       }
 
-      alert(`Bulk upload successful: ${result.createdCount} clients created`);
+      showToast(`Bulk upload successful: ${result.createdCount} clients created`, 'success');
       onClientCreated?.();
       onClose();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Bulk upload failed');
+      showToast(error instanceof Error ? error.message : 'Bulk upload failed', 'error');
     } finally {
       setIsBulkUploading(false);
       event.target.value = '';
@@ -514,6 +531,19 @@ export default function OnboardClientDrawer({ isOpen, onClose, onClientCreated }
 
   return (
     <div className="fixed inset-0 z-50 bg-white">
+      {toast && (
+        <div className="fixed right-6 top-6 z-[60]">
+          <div
+            className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+              toast.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
       <div className="flex flex-col h-full max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">

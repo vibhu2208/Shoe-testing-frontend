@@ -1,7 +1,7 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
 
@@ -52,6 +52,8 @@ interface ExtractedData {
   };
 }
 
+type ToastType = 'success' | 'error';
+
 export default function NewArticleDrawer({ isOpen, onClose, clientId = null, clientName = null, onArticleCreated }: NewArticleDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [articleNumber, setArticleNumber] = useState('');
@@ -67,7 +69,18 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const isStandaloneMode = !clientId;
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   if (!isOpen) return null;
 
@@ -80,11 +93,12 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
+    const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg'];
+    if (file && allowedMimeTypes.includes(file.type)) {
       setDocument(file);
       setExtractionError('');
     } else {
-      alert('Please select a PDF file');
+      showToast('Please select a PDF or JPEG/JPG file', 'error');
     }
   };
 
@@ -235,7 +249,9 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
       if (response.ok) {
         const result = await response.json();
-        setSuccess(`Article ${result.article.article_number} created successfully!`);
+        const successMessage = `Article ${result.article.article_number} created successfully!`;
+        setSuccess(successMessage);
+        showToast(successMessage, 'success');
         setTimeout(() => {
           onClose();
           if (onArticleCreated) {
@@ -243,11 +259,13 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
           }
         }, 1500);
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => null);
         throw new Error(errorData.error || 'Failed to create article');
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create article');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create article';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setIsCreating(false);
     }
@@ -285,13 +303,17 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
         throw new Error(result.error || 'Bulk upload failed');
       }
 
-      setSuccess(`Bulk upload successful: ${result.createdCount} articles created`);
+      const successMessage = `Bulk upload successful: ${result.createdCount} articles created`;
+      setSuccess(successMessage);
+      showToast(successMessage, 'success');
       setTimeout(() => {
         onClose();
         onArticleCreated?.();
       }, 1200);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Bulk upload failed');
+      const errorMessage = error instanceof Error ? error.message : 'Bulk upload failed';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setIsBulkUploading(false);
       event.target.value = '';
@@ -407,13 +429,13 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
                     browse
                     <input
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
                   </label>
                 </p>
-                <p className="text-sm text-slate-500">PDF files only, up to 10MB</p>
+                <p className="text-sm text-slate-500">PDF or JPEG/JPG files, up to 10MB</p>
               </div>
             </div>
 
@@ -582,6 +604,19 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
   return (
     <div className="fixed inset-0 z-50 bg-white">
+      {toast && (
+        <div className="fixed right-6 top-6 z-[60]">
+          <div
+            className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+              toast.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
       <div className="flex flex-col h-full max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">

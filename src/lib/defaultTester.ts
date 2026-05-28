@@ -30,7 +30,13 @@ export const isInhouseExecution = (type: ExecutionType | string | undefined) =>
  * Auto-assign default tester when switching to in-house or picking an in-house test.
  * Skips if a tester is already set or the update explicitly sets assigned_tester_id.
  */
-export function withDefaultTesterAssignment<T extends { assigned_tester_id?: string | number | null }>(
+export function withDefaultTesterAssignment<
+  T extends {
+    assigned_tester_id?: string | number | null;
+    execution_type?: string;
+    inhouse_test_id?: string | null;
+  }
+>(
   current: T,
   updates: Partial<T>,
   defaultTesterId: string | number | null,

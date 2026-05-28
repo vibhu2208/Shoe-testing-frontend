@@ -1,6 +1,7 @@
 'use client';
 
 import { publicApiUrl, publicAssetUrl } from '@/lib/apiBase';
+import { findDefaultTester, withDefaultTesterAssignment } from '@/lib/defaultTester';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, X, Plus, FileText, Clock, CheckCircle, AlertCircle, Package, Eye, Download, User, RotateCw, Calendar } from 'lucide-react';
 import PeriodicScheduleModal from '@/components/clients/PeriodicScheduleModal';
@@ -92,13 +93,21 @@ interface ArticleDetailsProps {
   clientId: number;
   articleId: number;
   clientName: string;
+  standaloneOnly?: boolean;
   onBack: () => void;
 }
 
-export default function ArticleDetails({ clientId, articleId, clientName, onBack }: ArticleDetailsProps) {
+export default function ArticleDetails({
+  clientId,
+  articleId,
+  clientName,
+  standaloneOnly = false,
+  onBack,
+}: ArticleDetailsProps) {
   const [article, setArticle] = useState<ArticleDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [testers, setTesters] = useState<Array<{id: string; name: string; department: string}>>([]);
+  const [testers, setTesters] = useState<Array<{id: string; name: string; department: string; email?: string}>>([]);
+  const [defaultTesterId, setDefaultTesterId] = useState<number | null>(null);
   const [loadingTesters, setLoadingTesters] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
@@ -155,6 +164,10 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
       if (response.ok) {
         const testersData = await response.json();
         setTesters(testersData);
+        const defaultTester = findDefaultTester(testersData);
+        if (defaultTester?.id != null) {
+          setDefaultTesterId(Number(defaultTester.id));
+        }
       } else {
         console.error('Failed to fetch testers');
       }
@@ -183,9 +196,23 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
 
   const updateTest = async (testId: string, updates: Partial<ArticleTest>) => {
     console.log('🔄 Updating test:', testId, updates);
+
+    const currentTest = article?.tests.find((t) => t.id === testId);
+    let mergedUpdates: Partial<ArticleTest> = { ...updates };
+    if (currentTest && defaultTesterId != null) {
+      mergedUpdates = withDefaultTesterAssignment(
+        currentTest,
+        mergedUpdates,
+        defaultTesterId,
+        {
+          execution_type: currentTest.execution_type,
+          inhouse_test_id: currentTest.inhouse_test_id,
+        }
+      ) as Partial<ArticleTest>;
+    }
     
     // Validate required fields before sending to backend
-    const validatedUpdates: Partial<ArticleTest> = { ...updates };
+    const validatedUpdates: Partial<ArticleTest> = { ...mergedUpdates };
 
     const statusProvided = Object.prototype.hasOwnProperty.call(validatedUpdates, 'status');
     const assignedTesterProvided = Object.prototype.hasOwnProperty.call(validatedUpdates, 'assigned_tester_id');
@@ -1088,7 +1115,11 @@ export default function ArticleDetails({ clientId, articleId, clientName, onBack
             : { id: '', test_name: '', test_standard: '', client_requirement: '' }
         }
         defaultTesterId={
-          scheduleModalTest?.assigned_tester_id != null ? String(scheduleModalTest.assigned_tester_id) : null
+          scheduleModalTest?.assigned_tester_id != null
+            ? String(scheduleModalTest.assigned_tester_id)
+            : defaultTesterId != null
+              ? String(defaultTesterId)
+              : null
         }
         testers={testers}
         onSaved={refreshArticleAndSchedules}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import TestCalculator from '@/components/TestCalculator';
+import { enrichTestForDisplay } from '@/lib/testLibraryMetadata';
 import { Test } from '@/types/test';
 
 interface TestDrawerProps {
@@ -27,7 +28,16 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
     };
   }, [isOpen]);
 
-  if (!test) return null;
+  const displayTest = useMemo(
+    () => (test ? enrichTestForDisplay(test) : null),
+    [test?.id]
+  );
+
+  if (!test || !displayTest) return null;
+
+  const inputParameters = displayTest.input_parameters || {};
+  const calculationSteps = displayTest.calculation_steps || [];
+  const passFailLogic = displayTest.pass_fail_logic || {};
 
   const getCategoryBadgeStyle = (category: string) => {
     switch (category) {
@@ -161,7 +171,14 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(test.input_parameters).map(([key, param]: [string, any], index) => (
+                      {Object.entries(inputParameters).length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-center text-slate-500">
+                            No input parameters configured for this test.
+                          </td>
+                        </tr>
+                      ) : null}
+                      {Object.entries(inputParameters).map(([key, param]: [string, any], index) => (
                         <tr key={key} className={index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
                           <td className="py-2 text-slate-900">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
                           <td className="py-2 text-slate-600">{param.type}</td>
@@ -178,7 +195,10 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
               <section>
                 <h4 className="text-lg font-semibold text-slate-900 mb-4">Calculation Logic</h4>
                 <div className="space-y-4">
-                  {test.calculation_steps.map((step: any, index: number) => (
+                  {calculationSteps.length === 0 ? (
+                    <p className="text-sm text-slate-500">No calculation steps configured for this test.</p>
+                  ) : null}
+                  {calculationSteps.map((step: any, index: number) => (
                     <div key={index} className="space-y-2">
                       <div className="bg-slate-100 rounded p-3">
                         <div className="text-sm font-medium text-slate-700 mb-1">Step {step.step}</div>
@@ -204,18 +224,18 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="border border-green-200 bg-green-50 rounded-lg p-4">
                     <h5 className="font-medium text-green-800 mb-2">PASS Conditions</h5>
-                    <p className="text-sm text-green-700">{test.pass_fail_logic.pass_condition}</p>
+                    <p className="text-sm text-green-700">{passFailLogic?.pass_condition || '—'}</p>
                   </div>
                   <div className="border border-red-200 bg-red-50 rounded-lg p-4">
                     <h5 className="font-medium text-red-800 mb-2">FAIL Conditions</h5>
-                    <p className="text-sm text-red-700">{test.pass_fail_logic.fail_condition}</p>
+                    <p className="text-sm text-red-700">{passFailLogic?.fail_condition || '—'}</p>
                   </div>
                 </div>
                 <p className="text-sm text-slate-500 italic mt-4">
                   Pass/fail thresholds are client-specified per order. Values shown are system defaults for reference only.
                 </p>
-                {test.pass_fail_logic.notes && (
-                  <p className="text-sm text-slate-600 mt-2">{test.pass_fail_logic.notes}</p>
+                {passFailLogic?.notes && (
+                  <p className="text-sm text-slate-600 mt-2">{passFailLogic.notes}</p>
                 )}
               </section>
 
@@ -225,7 +245,7 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                 <p className="text-sm text-slate-600 mb-4">
                   For admin reference only. Actual results are determined by client specification set at order level.
                 </p>
-                <TestCalculator test={test} />
+                <TestCalculator test={displayTest} />
               </section>
             </div>
           </div>

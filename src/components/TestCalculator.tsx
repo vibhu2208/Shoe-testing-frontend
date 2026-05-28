@@ -1,7 +1,12 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  createEmptyMaterialAbrasionStages,
+  MATERIAL_ABRASION_CYCLE_STAGES
+} from '@/lib/materialAbrasion';
+import { getCalculatorInputParameters } from '@/lib/testLibraryMetadata';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Test } from '@/types/test';
 
 interface TestCalculatorProps {
@@ -12,61 +17,6 @@ interface TestCalculatorProps {
   initialClientSpecsOverrides?: Record<string, unknown>;
   onCalculationResult?: (payload: { calculatedResults: any; passFailResult: string }) => void;
 }
-
-const FALLBACK_INPUT_PARAMETERS: Record<
-  string,
-  Record<string, { type: 'number' | 'boolean' | 'text'; default?: number | boolean | string }>
-> = {
-  'SATRA-TM-174': {
-    reference_rubber_run_1: { type: 'number', default: 0 },
-    reference_rubber_run_2: { type: 'number', default: 0 },
-    reference_rubber_run_3: { type: 'number', default: 0 },
-    sample_initial_weight: { type: 'number', default: 0 },
-    sample_final_weight: { type: 'number', default: 0 },
-    density: { type: 'number', default: 1.3 },
-    client_spec_max_volume: { type: 'number', default: 200 }
-  },
-  'SATRA-TM-92': {
-    required_cycles: { type: 'number', default: 30000 },
-    actual_cycles_completed: { type: 'number', default: 0 },
-    crack_observed: { type: 'boolean', default: false }
-  },
-  'SATRA-TM-161': {
-    required_cycles: { type: 'number', default: 30000 },
-    actual_cycles_completed: { type: 'number', default: 0 },
-    upper_crack: { type: 'boolean', default: false },
-    sole_crack: { type: 'boolean', default: false },
-    sole_separation: { type: 'boolean', default: false },
-    stitch_failure: { type: 'boolean', default: false }
-  },
-  'PH-001': {
-    beaker_1_ph: { type: 'number', default: 0 },
-    beaker_2_ph: { type: 'number', default: 0 },
-    client_spec_min_avg_ph: { type: 'number', default: 6 },
-    client_spec_max_difference: { type: 'number', default: 0.5 }
-  },
-  'ISO-19574': {
-    required_duration: { type: 'number', default: 24 },
-    actual_duration: { type: 'number', default: 0 },
-    fungus_growth_observed: { type: 'boolean', default: false }
-  },
-  'FZ-001': {
-    required_duration: { type: 'number', default: 24 },
-    actual_duration: { type: 'number', default: 0 },
-    cracking_observed: { type: 'boolean', default: false },
-    hardening_observed: { type: 'boolean', default: false },
-    material_failure_observed: { type: 'boolean', default: false },
-    flexibility_loss_observed: { type: 'boolean', default: false }
-  },
-  'HAO-001': {
-    required_duration: { type: 'number', default: 24 },
-    actual_duration: { type: 'number', default: 0 },
-    deformation_observed: { type: 'boolean', default: false },
-    shrinkage_observed: { type: 'boolean', default: false },
-    adhesive_failure_observed: { type: 'boolean', default: false },
-    color_change_observed: { type: 'boolean', default: false }
-  }
-};
 
 export default function TestCalculator({
   test,
@@ -106,21 +56,25 @@ export default function TestCalculator({
   const [inputData, setInputData] = useState<any>({});
   const [clientSpecs, setClientSpecs] = useState<any>({});
   const [results, setResults] = useState<any>(null);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const onCalculationResultRef = useRef(onCalculationResult);
   onCalculationResultRef.current = onCalculationResult;
-  const effectiveInputParameters =
-    test.input_parameters && Object.keys(test.input_parameters).length > 0
-      ? test.input_parameters
-      : FALLBACK_INPUT_PARAMETERS[test.id] || {};
+  const effectiveInputParameters = useMemo(
+    () => getCalculatorInputParameters(test),
+    [test.id]
+  );
+  const inputOverridesKey = JSON.stringify(initialInputOverrides ?? {});
+  const clientSpecsOverridesKey = JSON.stringify(initialClientSpecsOverrides ?? {});
 
   // Initialize input data with defaults + optional overrides (from spec sheet extraction)
   useEffect(() => {
+    const params = getCalculatorInputParameters(test);
     const initialData: any = {};
     const initialSpecs: any = {};
 
-    if (effectiveInputParameters && typeof effectiveInputParameters === 'object') {
-      Object.entries(effectiveInputParameters).forEach(([key, param]: [string, any]) => {
+    if (params && typeof params === 'object') {
+      Object.entries(params).forEach(([key, param]: [string, any]) => {
         if (param && typeof param === 'object') {
           if (param.default !== null && param.default !== undefined) {
             initialData[key] = param.default;
@@ -149,13 +103,20 @@ export default function TestCalculator({
       }));
     }
 
+    if (test.id === 'SATRA-TM-31' && !initialData.dry_stages && !initialData.wet_stages) {
+      Object.assign(initialData, createEmptyMaterialAbrasionStages());
+    }
+
     setInputData(initialData);
+    setCalculationError(null);
     setClientSpecs(initialSpecs);
-  }, [test, initialInputOverrides, initialClientSpecsOverrides, effectiveInputParameters]);
+    // Only re-init when test identity or explicit overrides change (not on every parent render)
+  }, [test.id, inputOverridesKey, clientSpecsOverridesKey]);
 
   const calculateResults = useCallback(async (data: any, specs: any) => {
     try {
       setLoading(true);
+      setCalculationError(null);
       const token = localStorage.getItem('token');
       
       if (!token) {
@@ -178,15 +139,21 @@ export default function TestCalculator({
       if (response.ok) {
         const result = await response.json();
         setResults(result.calculatedResults);
+        setCalculationError(null);
         onCalculationResultRef.current?.({
           calculatedResults: result.calculatedResults,
           passFailResult: result.passFailResult
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
+        const message = errorData.error || 'Calculation failed';
+        setCalculationError(message);
+        setResults(null);
         console.error('Calculation API error:', errorData);
       }
     } catch (error) {
+      setCalculationError('Calculation failed. Check your connection and try again.');
+      setResults(null);
       console.error('Calculation error:', error);
     } finally {
       setLoading(false);
@@ -360,7 +327,7 @@ export default function TestCalculator({
 
     // Special calculator for SATRA-TM-31 (Material Abrasion)
     if (test.id === 'SATRA-TM-31') {
-      const cycleStages = [1600, 3200, 6400, 12800, 25600];
+      const cycleStages = MATERIAL_ABRASION_CYCLE_STAGES;
       
       return (
         <div className="space-y-6">
@@ -376,7 +343,7 @@ export default function TestCalculator({
                         type="checkbox"
                         checked={stageData.required || false}
                         onChange={(e) => {
-                          const newDryStages = { ...inputData.dry_stages };
+                          const newDryStages = { ...(inputData.dry_stages || createEmptyMaterialAbrasionStages().dry_stages) };
                           newDryStages[stage] = { ...stageData, required: e.target.checked };
                           handleInputChange('dry_stages', newDryStages);
                         }}
@@ -388,7 +355,7 @@ export default function TestCalculator({
                     <select
                       value={stageData.status}
                       onChange={(e) => {
-                        const newDryStages = { ...inputData.dry_stages };
+                        const newDryStages = { ...(inputData.dry_stages || createEmptyMaterialAbrasionStages().dry_stages) };
                         newDryStages[stage] = { ...stageData, status: e.target.value };
                         handleInputChange('dry_stages', newDryStages);
                       }}
@@ -404,7 +371,7 @@ export default function TestCalculator({
                       placeholder="Damage type"
                       value={stageData.damage_type}
                       onChange={(e) => {
-                        const newDryStages = { ...inputData.dry_stages };
+                        const newDryStages = { ...(inputData.dry_stages || createEmptyMaterialAbrasionStages().dry_stages) };
                         newDryStages[stage] = { ...stageData, damage_type: e.target.value };
                         handleInputChange('dry_stages', newDryStages);
                       }}
@@ -429,7 +396,7 @@ export default function TestCalculator({
                         type="checkbox"
                         checked={stageData.required || false}
                         onChange={(e) => {
-                          const newWetStages = { ...inputData.wet_stages };
+                          const newWetStages = { ...(inputData.wet_stages || createEmptyMaterialAbrasionStages().wet_stages) };
                           newWetStages[stage] = { ...stageData, required: e.target.checked };
                           handleInputChange('wet_stages', newWetStages);
                         }}
@@ -441,7 +408,7 @@ export default function TestCalculator({
                     <select
                       value={stageData.status}
                       onChange={(e) => {
-                        const newWetStages = { ...inputData.wet_stages };
+                        const newWetStages = { ...(inputData.wet_stages || createEmptyMaterialAbrasionStages().wet_stages) };
                         newWetStages[stage] = { ...stageData, status: e.target.value };
                         handleInputChange('wet_stages', newWetStages);
                       }}
@@ -457,7 +424,7 @@ export default function TestCalculator({
                       placeholder="Damage type"
                       value={stageData.damage_type}
                       onChange={(e) => {
-                        const newWetStages = { ...inputData.wet_stages };
+                        const newWetStages = { ...(inputData.wet_stages || createEmptyMaterialAbrasionStages().wet_stages) };
                         newWetStages[stage] = { ...stageData, damage_type: e.target.value };
                         handleInputChange('wet_stages', newWetStages);
                       }}
@@ -514,6 +481,12 @@ export default function TestCalculator({
           >
             {loading ? 'Calculating...' : 'Submit'}
           </button>
+
+          {calculationError && (
+            <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="alert">
+              {calculationError}
+            </p>
+          )}
           
           {variant === 'admin' && (
             <div className="mt-2 text-xs text-slate-500">

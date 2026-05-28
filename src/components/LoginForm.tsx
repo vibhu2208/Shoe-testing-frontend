@@ -19,31 +19,16 @@ export default function LoginForm() {
     setIsLoading(true);
     setError('');
 
-    let detectedRole: 'admin' | 'tester';
-    if (email.includes('admin')) {
-      detectedRole = 'admin';
-    } else if (email.includes('tester')) {
-      detectedRole = 'tester';
-    } else if (email.includes('virola.com')) {
-      detectedRole = 'tester';
-    } else {
-      setError(
-        'Invalid email domain. Use admin@example.com, tester@example.com, or a virola.com address.'
-      );
-      setIsLoading(false);
-      return;
-    }
+    const user = await login(email.trim(), password);
 
-    const success = await login(email, password, detectedRole);
-
-    if (success) {
-      if (detectedRole === 'tester') {
+    if (user) {
+      if (user.role === 'tester') {
         router.replace('/tester/dashboard');
       } else {
         router.replace('/admin/dashboard');
       }
     } else {
-      setError('Invalid credentials. Please try again.');
+      setError('Invalid email or password. Please try again.');
     }
 
     setIsLoading(false);
@@ -132,7 +117,7 @@ export default function LoginForm() {
                 />
               </div>
               <p className="mt-1.5 text-xs text-slate-500">
-                Role is detected from your email (admin, tester, or virola.com).
+                Use the email and password set when your account was created.
               </p>
             </div>
 
@@ -205,9 +190,9 @@ export default function LoginForm() {
               </div>
             </dl>
             <p className="mt-3 border-t border-amber-200/60 pt-3 text-xs leading-relaxed text-amber-900/75">
-              Other roles: <span className="font-medium">tester@example.com</span> or{' '}
-              <span className="font-medium">*@virola.com</span> with your seeded password (often{' '}
-              <span className="font-mono">password</span> in local setups).
+              Testers use the exact email and password from User Management (e.g.{' '}
+              <span className="font-medium">Testing@virola.com</span> for Alok). Any email domain
+              works if the account exists in the system.
             </p>
           </div>
         </div>

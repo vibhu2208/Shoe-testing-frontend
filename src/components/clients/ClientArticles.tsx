@@ -110,6 +110,7 @@ export default function ClientArticles({ clientId, clientName, standaloneOnly = 
         clientId={clientId || 0}
         articleId={viewingArticle.articleId}
         clientName={clientName || 'Standalone Articles'}
+        standaloneOnly={standaloneOnly}
         onBack={handleBackToArticles}
       />
     );

@@ -26,14 +26,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, role: 'admin' | 'tester'): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<User | null> => {
     try {
       const response = await fetch(publicApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       if (response.ok) {
@@ -41,12 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user);
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        return true;
+        return data.user as User;
       }
-      return false;
+      return null;
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      return null;
     }
   };
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { publicApiUrl, publicAssetUrl } from '@/lib/apiBase';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import TestCalculator from '@/components/TestCalculator';
 import { Test } from '@/types/test';
 import { parseClientSpecsFromRequirement, resolveLibraryTestId } from '@/lib/clientRequirementParser';
@@ -61,9 +61,13 @@ export default function TesterResultEntry({
   const [uploadErrors, setUploadErrors] = useState<Record<number, string>>({});
 
   const libraryId = resolveLibraryTestId(inhouseTestId, testStandard);
-  const parsed = libraryId
-    ? parseClientSpecsFromRequirement(libraryId, clientRequirement)
-    : { input: {} as Record<string, number | boolean>, specs: {} as Record<string, number> };
+  const parsed = useMemo(
+    () =>
+      libraryId
+        ? parseClientSpecsFromRequirement(libraryId, clientRequirement)
+        : { input: {} as Record<string, number | boolean>, specs: {} as Record<string, number> },
+    [libraryId, clientRequirement]
+  );
 
   useEffect(() => {
     if (!libraryId) {

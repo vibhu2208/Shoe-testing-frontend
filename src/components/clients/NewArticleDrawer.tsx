@@ -1,6 +1,7 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
+import { findDefaultTester, resolveTesterIdForPayload } from '@/lib/defaultTester';
 import React, { useEffect, useState } from 'react';
 import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
@@ -70,6 +71,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
   const [success, setSuccess] = useState('');
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [defaultTesterId, setDefaultTesterId] = useState<string | null>(null);
   const isStandaloneMode = !clientId;
 
   const showToast = (message: string, type: ToastType = 'success') => {
@@ -82,6 +84,27 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const loadDefaultTester = async () => {
+      try {
+        const response = await fetch(publicApiUrl('/api/clients/users?role=tester'));
+        if (!response.ok) return;
+        const testersData = await response.json();
+        const defaultTester = findDefaultTester(testersData);
+        if (defaultTester?.id != null) {
+          setDefaultTesterId(String(defaultTester.id));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    loadDefaultTester();
+    return undefined;
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const steps = [
@@ -93,12 +116,11 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg'];
-    if (file && allowedMimeTypes.includes(file.type)) {
+    if (file && file.type === 'application/pdf') {
       setDocument(file);
       setExtractionError('');
     } else {
-      showToast('Please select a PDF or JPEG/JPG file', 'error');
+      showToast('Please select a PDF file', 'error');
     }
   };
 
@@ -221,21 +243,26 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
         color: color.trim() || null,
         description: description.trim() || null,
         specifications: extractedData?.component || null,
-        tests: extractedData?.tests ? extractedData.tests.map((test) => ({
-          testName: test.test_name,
-          standard: test.standard_method,
-          clientRequirement: test.client_requirement,
-          category: test.category,
-          executionType: test.execution_type,
-          inhouseTestId: test.inhouse_test_id,
-          vendorName: test.vendor_name,
-          vendorContact: test.vendor_contact,
-          vendorEmail: test.vendor_email,
-          expectedReportDate: test.expected_report_date,
-          assignedTesterId: test.assigned_tester_id,
-          testDeadline: test.test_deadline,
-          notes: test.notes
-        })) : []
+        tests: extractedData?.tests ? extractedData.tests.map((test) => {
+          const assignedTesterId = resolveTesterIdForPayload(test, defaultTesterId);
+          return {
+            testName: test.test_name,
+            standard: test.standard_method,
+            clientRequirement: test.client_requirement,
+            category: test.category,
+            executionType: test.execution_type,
+            inhouseTestId: test.inhouse_test_id,
+            vendorName: test.vendor_name,
+            vendorContact: test.vendor_contact,
+            vendorEmail: test.vendor_email,
+            expectedReportDate: test.expected_report_date,
+            ...(assignedTesterId != null && assignedTesterId !== ''
+              ? { assignedTesterId }
+              : {}),
+            testDeadline: test.test_deadline,
+            notes: test.notes
+          };
+        }) : []
       };
 
       const endpoint = clientId ? `/api/clients/${clientId}/articles` : '/api/articles';
@@ -429,13 +456,13 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
                     browse
                     <input
                       type="file"
-                      accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg"
+                      accept=".pdf"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
                   </label>
                 </p>
-                <p className="text-sm text-slate-500">PDF or JPEG/JPG files, up to 10MB</p>
+                <p className="text-sm text-slate-500">PDF files only, up to 10MB</p>
               </div>
             </div>
 

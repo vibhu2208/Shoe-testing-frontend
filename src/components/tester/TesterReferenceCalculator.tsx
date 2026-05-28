@@ -1,6 +1,10 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
+import {
+  createEmptyMaterialAbrasionStages,
+  MATERIAL_ABRASION_CYCLE_STAGES
+} from '@/lib/materialAbrasion';
 import { useState, useEffect } from 'react';
 import { Calculator, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
@@ -120,14 +124,9 @@ export default function TesterReferenceCalculator({
     }
 
     if (test.id === 'SATRA-TM-31') {
-      const cycleStages = [1600, 3200, 6400, 12800, 25600];
-      initialData.dry_stages = {};
-      initialData.wet_stages = {};
-      
-      cycleStages.forEach(stage => {
-        initialData.dry_stages[stage] = { required: false, status: 'OK', damage_type: '', remarks: '' };
-        initialData.wet_stages[stage] = { required: false, status: 'OK', damage_type: '', remarks: '' };
-      });
+      const { dry_stages, wet_stages } = createEmptyMaterialAbrasionStages();
+      initialData.dry_stages = dry_stages;
+      initialData.wet_stages = wet_stages;
     }
 
     setInputData(initialData);
@@ -352,7 +351,7 @@ export default function TesterReferenceCalculator({
 
     // Special calculator for SATRA-TM-31 (Material Abrasion)
     if (testDetails.id === 'SATRA-TM-31') {
-      const cycleStages = [1600, 3200, 6400, 12800, 25600];
+      const cycleStages = MATERIAL_ABRASION_CYCLE_STAGES;
       
       return (
         <div className="space-y-6">

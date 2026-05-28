@@ -1,6 +1,11 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
+import {
+  findDefaultTester,
+  isInhouseExecution,
+  withDefaultTesterAssignment,
+} from '@/lib/defaultTester';
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Plus, Trash2, AlertCircle, CheckCircle2, Eye, EyeOff, X, User } from 'lucide-react';
 
@@ -100,7 +105,16 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [expandedRequirements, setExpandedRequirements] = useState<Set<string>>(new Set());
   const [testers, setTesters] = useState<Tester[]>([]);
+  const [defaultTesterId, setDefaultTesterId] = useState<string | null>(null);
   const [loadingTesters, setLoadingTesters] = useState(false);
+
+  const applyDefaultTester = (testerId: string, testsToUpdate: TestRow[]) =>
+    testsToUpdate.map((test) => {
+      if (isInhouseExecution(test.execution_type) && !test.assigned_tester_id) {
+        return { ...test, assigned_tester_id: testerId };
+      }
+      return test;
+    });
 
   // Validate tests and calculate errors (without updating state)
   const validateTests = (testsToValidate: TestRow[]) => {
@@ -150,6 +164,11 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
         if (response.ok) {
           const testersData = await response.json();
           setTesters(testersData);
+          const defaultTester = findDefaultTester(testersData);
+          if (defaultTester?.id) {
+            setDefaultTesterId(String(defaultTester.id));
+            setTests((prev) => applyDefaultTester(String(defaultTester.id), prev));
+          }
         } else {
           console.error('Failed to fetch testers');
         }
@@ -164,24 +183,23 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
   }, []);
 
   const updateTest = (testId: string, updates: Partial<TestRow>) => {
-    console.log('🔄 Updating test:', testId, updates);
-    console.log('📋 Current tests before update:', tests.map(t => ({ id: t.id, test_name: t.test_name })));
-    
-    setTests(prev => {
-      console.log('📝 Previous state:', prev.map(t => ({ id: t.id, test_name: t.test_name })));
-      
-      const updated = prev.map(test => {
-        if (test.id === testId) {
-          const updatedTest = { ...test, ...updates };
-          console.log('✅ Updated test:', updatedTest);
-          return updatedTest;
+    setTests((prev) =>
+      prev.map((test) => {
+        if (test.id !== testId) return test;
+        let patch = updates;
+        if (defaultTesterId) {
+          patch = withDefaultTesterAssignment(test, updates, defaultTesterId, {
+            execution_type: test.execution_type,
+            inhouse_test_id: test.inhouse_test_id,
+          }) as Partial<TestRow>;
         }
-        return test;
-      });
-      
-      console.log('🎯 Final updated array:', updated.map(t => ({ id: t.id, test_name: t.test_name })));
-      return updated;
-    });
+        const merged = { ...test, ...patch };
+        if (updates.execution_type === 'outsource') {
+          merged.assigned_tester_id = null;
+        }
+        return merged;
+      })
+    );
   };
 
   const toggleRequirementExpansion = (testId: string) => {
@@ -562,7 +580,7 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
                             className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             disabled={loadingTesters}
                           >
-                            <option value="">Assign tester (optional)</option>
+                            <option value="">No tester assigned</option>
                             {testers.map((tester) => (
                               <option key={tester.id} value={tester.id}>
                                 {tester.name} - {tester.department}

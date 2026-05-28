@@ -2,6 +2,15 @@ import { Test } from '@/types/test';
 import { SATRA_TM_31_FALLBACK } from '@/lib/materialAbrasion';
 
 type ParamDef = { type: string; default?: number | boolean | string | null; notes?: string };
+
+function isParamDef(value: unknown): value is ParamDef {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'type' in value &&
+    typeof (value as ParamDef).type === 'string'
+  );
+}
 type TestMetadata = {
   input_parameters: Record<string, ParamDef>;
   calculation_steps: Array<{ step: number; formula: string; description: string }>;
@@ -187,11 +196,11 @@ export function getCalculatorInputParameters(
   test: Test
 ): Record<string, { type: 'number' | 'boolean' | 'text'; default?: number | boolean | string }> {
   const enriched = enrichTestForDisplay(test);
-  const params = enriched.input_parameters || {};
+  const params: Record<string, unknown> = enriched.input_parameters ?? {};
   const result: Record<string, { type: 'number' | 'boolean' | 'text'; default?: number | boolean | string }> = {};
 
   for (const [key, def] of Object.entries(params)) {
-    if (!def || typeof def !== 'object') continue;
+    if (!isParamDef(def)) continue;
     const t = def.type === 'boolean' ? 'boolean' : def.type === 'text' ? 'text' : 'number';
     result[key] = { type: t, default: def.default ?? (t === 'boolean' ? false : 0) };
   }

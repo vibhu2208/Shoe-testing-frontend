@@ -8,9 +8,11 @@ interface TestCardProps {
   test: Test;
   onTestClick: (test: Test) => void;
   onCategoryChange: (testId: string, newCategory: string) => void;
+  templates: Array<{ template_key: string; template_name: string }>;
+  onTemplateChange: (testId: string, templateKey: string) => void;
 }
 
-export default function TestCard({ test, onTestClick, onCategoryChange }: TestCardProps) {
+export default function TestCard({ test, onTestClick, onCategoryChange, templates, onTemplateChange }: TestCardProps) {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   const getCategoryBadgeStyle = (category: string) => {
@@ -68,6 +70,9 @@ export default function TestCard({ test, onTestClick, onCategoryChange }: TestCa
         
         <h3 className="font-semibold text-slate-900 mb-1">{test.name}</h3>
         <p className="text-sm text-slate-500">{test.standard}</p>
+        <p className="text-xs text-slate-500 mt-1">
+          Template: {test.template_name || test.templateName || test.template_key || test.templateKey || 'Not mapped'}
+        </p>
       </div>
 
       {/* Card Body */}
@@ -98,6 +103,22 @@ export default function TestCard({ test, onTestClick, onCategoryChange }: TestCa
           <code className="text-xs text-slate-700 font-mono">
             {test.formula_preview}
           </code>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-slate-600 mb-1">Linked Report Template</label>
+          <select
+            value={(test.template_key || test.templateKey || '') as string}
+            onChange={(e) => onTemplateChange(test.id, e.target.value)}
+            className="w-full border border-slate-300 rounded px-2 py-2 text-sm"
+          >
+            <option value="">Select template</option>
+            {templates.map((template) => (
+              <option key={template.template_key} value={template.template_key}>
+                {template.template_name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* View Details Button */}

@@ -15,7 +15,11 @@ interface TestCalculatorProps {
   clientRequirementText?: string;
   initialInputOverrides?: Record<string, unknown>;
   initialClientSpecsOverrides?: Record<string, unknown>;
-  onCalculationResult?: (payload: { calculatedResults: any; passFailResult: string }) => void;
+  onCalculationResult?: (payload: {
+    calculatedResults: any;
+    passFailResult: string;
+    inputSnapshot?: Record<string, unknown>;
+  }) => void;
 }
 
 export default function TestCalculator({
@@ -142,7 +146,8 @@ export default function TestCalculator({
         setCalculationError(null);
         onCalculationResultRef.current?.({
           calculatedResults: result.calculatedResults,
-          passFailResult: result.passFailResult
+          passFailResult: result.passFailResult,
+          inputSnapshot: { ...data, ...specs }
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -436,6 +441,135 @@ export default function TestCalculator({
               })}
             </div>
           </div>
+        </div>
+      );
+    }
+
+    // Special calculator for PH-001 (pH value — two readings per beaker)
+    if (test.id === 'PH-001') {
+      const beaker1Stats = (() => {
+        const a = inputData.beaker_1_ph_1;
+        const b = inputData.beaker_1_ph_2;
+        if (a === '' || a == null || b === '' || b == null) return null;
+        const n1 = Number(a);
+        const n2 = Number(b);
+        if (Number.isNaN(n1) || Number.isNaN(n2)) return null;
+        return {
+          average: Math.round(((n1 + n2) / 2) * 100) / 100,
+          difference: Math.round(Math.abs(n1 - n2) * 100) / 100
+        };
+      })();
+      const beaker2Stats = (() => {
+        const a = inputData.beaker_2_ph_1;
+        const b = inputData.beaker_2_ph_2;
+        if (a === '' || a == null || b === '' || b == null) return null;
+        const n1 = Number(a);
+        const n2 = Number(b);
+        if (Number.isNaN(n1) || Number.isNaN(n2)) return null;
+        return {
+          average: Math.round(((n1 + n2) / 2) * 100) / 100,
+          difference: Math.round(Math.abs(n1 - n2) * 100) / 100
+        };
+      })();
+      const minAvg = Number(clientSpecs.client_spec_min_avg_ph ?? inputData.client_spec_min_avg_ph ?? 0);
+      const maxDiff = Number(clientSpecs.client_spec_max_difference ?? inputData.client_spec_max_difference ?? 0);
+
+      const renderBeakerSection = (
+        beakerLabel: string,
+        key1: string,
+        key2: string,
+        stats: { average: number; difference: number } | null
+      ) => {
+        const avgPasses = stats ? stats.average >= minAvg : null;
+        const diffPasses = stats ? stats.difference <= maxDiff : null;
+        return (
+          <div className={`rounded-lg border p-4 ${isTester ? 'border-black/15 bg-white' : 'border-slate-200 bg-white'}`}>
+            <h6 className="font-medium text-black mb-3">{beakerLabel}</h6>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${tc.label} mb-1`}>Reading 1</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={inputData[key1] || ''}
+                  onChange={(e) => handleInputChange(key1, parseFloat(e.target.value) || 0)}
+                  className={tc.input}
+                  placeholder="e.g., 7.2"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${tc.label} mb-1`}>Reading 2</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={inputData[key2] || ''}
+                  onChange={(e) => handleInputChange(key2, parseFloat(e.target.value) || 0)}
+                  className={tc.input}
+                  placeholder="e.g., 7.3"
+                />
+              </div>
+            </div>
+            {stats && (
+              <div className={`mt-3 grid grid-cols-2 gap-3 text-sm ${tc.muted}`}>
+                <div className="rounded-md border border-black/10 px-3 py-2">
+                  <span className="block text-xs uppercase tracking-wide">Beaker average</span>
+                  <span className="font-mono text-base text-black">{stats.average.toFixed(2)}</span>
+                  {avgPasses != null && (
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded ${avgPasses ? 'bg-green-700 text-white' : 'bg-black text-white'}`}>
+                      {avgPasses ? 'PASS' : 'FAIL'}
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-md border border-black/10 px-3 py-2">
+                  <span className="block text-xs uppercase tracking-wide">Reading difference</span>
+                  <span className="font-mono text-base text-black">{stats.difference.toFixed(2)}</span>
+                  {diffPasses != null && (
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded ${diffPasses ? 'bg-green-700 text-white' : 'bg-black text-white'}`}>
+                      {diffPasses ? 'PASS' : 'FAIL'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium ${tc.label} mb-1`}>
+                Min Average pH (per beaker)
+                <span className="ml-1 px-1 py-0.5 bg-green-100 text-green-800 text-xs rounded border border-green-800/30">Client Spec</span>
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={clientSpecs.client_spec_min_avg_ph ?? inputData.client_spec_min_avg_ph ?? ''}
+                onChange={(e) => handleClientSpecChange('client_spec_min_avg_ph', parseFloat(e.target.value) || 0)}
+                className={tc.input}
+                placeholder="e.g., 6.0"
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium ${tc.label} mb-1`}>
+                Max Reading Difference (per beaker)
+                <span className="ml-1 px-1 py-0.5 bg-green-100 text-green-800 text-xs rounded border border-green-800/30">Client Spec</span>
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={clientSpecs.client_spec_max_difference ?? inputData.client_spec_max_difference ?? ''}
+                onChange={(e) => handleClientSpecChange('client_spec_max_difference', parseFloat(e.target.value) || 0)}
+                className={tc.input}
+                placeholder="e.g., 0.5"
+              />
+            </div>
+          </div>
+
+          {renderBeakerSection('Beaker 1', 'beaker_1_ph_1', 'beaker_1_ph_2', beaker1Stats)}
+          {renderBeakerSection('Beaker 2', 'beaker_2_ph_1', 'beaker_2_ph_2', beaker2Stats)}
         </div>
       );
     }

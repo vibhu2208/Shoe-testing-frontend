@@ -102,19 +102,21 @@ export const TEST_LIBRARY_METADATA: Record<string, TestMetadata> = {
   },
   'PH-001': {
     input_parameters: {
-      beaker_1_ph: param('number', 0, 'pH beaker 1'),
-      beaker_2_ph: param('number', 0, 'pH beaker 2'),
-      client_spec_min_avg_ph: param('number', 6, 'Minimum average pH'),
-      client_spec_max_difference: param('number', 0.5, 'Max beaker difference')
+      beaker_1_ph_1: param('number', 0, 'pH reading 1 — beaker 1'),
+      beaker_1_ph_2: param('number', 0, 'pH reading 2 — beaker 1'),
+      beaker_2_ph_1: param('number', 0, 'pH reading 1 — beaker 2'),
+      beaker_2_ph_2: param('number', 0, 'pH reading 2 — beaker 2'),
+      client_spec_min_avg_ph: param('number', 6, 'Minimum average pH per beaker'),
+      client_spec_max_difference: param('number', 0.5, 'Max difference between readings in each beaker')
     },
     calculation_steps: [
-      { step: 1, formula: 'average_pH = (b1 + b2) / 2', description: 'Average pH.' },
-      { step: 2, formula: 'difference = |b1 − b2|', description: 'Beaker difference.' },
-      { step: 3, formula: 'PASS if avg ≥ min AND diff ≤ max', description: 'Both limits required.' }
+      { step: 1, formula: 'beaker_avg = (reading_1 + reading_2) / 2', description: 'Average pH per beaker.' },
+      { step: 2, formula: 'beaker_diff = |reading_1 − reading_2|', description: 'Difference between the two readings in each beaker.' },
+      { step: 3, formula: 'PASS if each beaker avg ≥ min AND each beaker diff ≤ max', description: 'Both beakers must pass.' }
     ],
     pass_fail_logic: {
-      pass_condition: 'Average and difference within client limits.',
-      fail_condition: 'Average too low or difference too high.'
+      pass_condition: 'Each beaker average and reading-pair difference within client limits.',
+      fail_condition: 'Any beaker average too low or any reading pair differs too much.'
     }
   },
   'ISO-19574': {

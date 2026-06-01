@@ -54,7 +54,11 @@ export default function TesterResultEntry({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastPassFail, setLastPassFail] = useState<string | null>(null);
-  const [lastCalc, setLastCalc] = useState<{ calculatedResults: any; passFailResult: string } | null>(null);
+  const [lastCalc, setLastCalc] = useState<{
+    calculatedResults: any;
+    passFailResult: string;
+    inputSnapshot?: Record<string, unknown>;
+  } | null>(null);
   const [photos, setPhotos] = useState<Array<{ slot: number; label: string; url: string; uploaded_at: string }>>([]);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({});
@@ -121,7 +125,11 @@ export default function TesterResultEntry({
   }, [articleTestId]);
 
   const handleCalculationResult = useCallback(
-    (payload: { calculatedResults: any; passFailResult: string }) => {
+    (payload: {
+      calculatedResults: any;
+      passFailResult: string;
+      inputSnapshot?: Record<string, unknown>;
+    }) => {
       setLastPassFail(payload.passFailResult);
       setLastCalc(payload);
     },
@@ -154,6 +162,44 @@ export default function TesterResultEntry({
             result_data: {
               library_test_id: libraryId,
               client_requirement: clientRequirement,
+              client_spec_min_bond_strength:
+                parsed.specs.client_spec_min_bond_strength ??
+                parsed.input.client_spec_min_bond_strength,
+              client_spec_dry_cycles: parsed.specs.client_spec_dry_cycles ?? parsed.input.client_spec_dry_cycles,
+              client_spec_wet_cycles: parsed.specs.client_spec_wet_cycles ?? parsed.input.client_spec_wet_cycles,
+              required_cycles:
+                lastCalc?.inputSnapshot?.required_cycles ??
+                parsed.specs.required_cycles ??
+                parsed.input.required_cycles,
+              actual_cycles_completed: lastCalc?.inputSnapshot?.actual_cycles_completed,
+              crack_observed: lastCalc?.inputSnapshot?.crack_observed,
+              upper_crack: lastCalc?.inputSnapshot?.upper_crack,
+              sole_crack: lastCalc?.inputSnapshot?.sole_crack,
+              sole_separation: lastCalc?.inputSnapshot?.sole_separation,
+              stitch_failure: lastCalc?.inputSnapshot?.stitch_failure,
+              dry_stages: lastCalc?.inputSnapshot?.dry_stages ?? null,
+              wet_stages: lastCalc?.inputSnapshot?.wet_stages ?? null,
+              beaker_1_ph_1: lastCalc?.inputSnapshot?.beaker_1_ph_1,
+              beaker_1_ph_2: lastCalc?.inputSnapshot?.beaker_1_ph_2,
+              beaker_2_ph_1: lastCalc?.inputSnapshot?.beaker_2_ph_1,
+              beaker_2_ph_2: lastCalc?.inputSnapshot?.beaker_2_ph_2,
+              beaker_1_ph: lastCalc?.calculatedResults?.beaker_1_average ?? lastCalc?.calculatedResults?.beaker_1_ph,
+              beaker_2_ph: lastCalc?.calculatedResults?.beaker_2_average ?? lastCalc?.calculatedResults?.beaker_2_ph,
+              client_spec_min_avg_ph:
+                parsed.specs.client_spec_min_avg_ph ??
+                parsed.input.client_spec_min_avg_ph ??
+                lastCalc?.inputSnapshot?.client_spec_min_avg_ph,
+              client_spec_max_difference:
+                parsed.specs.client_spec_max_difference ??
+                parsed.input.client_spec_max_difference ??
+                lastCalc?.inputSnapshot?.client_spec_max_difference,
+              humidity: lastCalc?.inputSnapshot?.humidity,
+              temperature: lastCalc?.inputSnapshot?.temperature,
+              distilled_water_ph: lastCalc?.inputSnapshot?.distilled_water_ph,
+              leather_pcs: lastCalc?.inputSnapshot?.leather_pcs,
+              sample_marked_as: lastCalc?.inputSnapshot?.sample_marked_as,
+              mass_beaker_1: lastCalc?.inputSnapshot?.mass_beaker_1,
+              mass_beaker_2: lastCalc?.inputSnapshot?.mass_beaker_2,
               calculated_results: lastCalc?.calculatedResults ?? null,
               pass_fail: lastCalc?.passFailResult ?? lastPassFail,
               photos,

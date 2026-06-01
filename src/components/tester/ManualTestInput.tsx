@@ -78,24 +78,51 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
         };
       }
     } else if (testStandard === 'PH-001') {
-      // pH Value calculation
-      const { beaker_1_ph, beaker_2_ph, client_spec_min_avg_ph = 6.0, client_spec_max_difference = 0.5 } = inputData;
+      const {
+        beaker_1_ph_1,
+        beaker_1_ph_2,
+        beaker_2_ph_1,
+        beaker_2_ph_2,
+        client_spec_min_avg_ph = 6.0,
+        client_spec_max_difference = 0.5
+      } = inputData;
 
-      if (beaker_1_ph && beaker_2_ph) {
-        const average_pH = (parseFloat(beaker_1_ph) + parseFloat(beaker_2_ph)) / 2;
-        const difference = Math.abs(parseFloat(beaker_1_ph) - parseFloat(beaker_2_ph));
-        
-        const avg_ph_passes = average_pH >= client_spec_min_avg_ph;
-        const difference_passes = difference <= client_spec_max_difference;
-        passFailResult = avg_ph_passes && difference_passes ? 'PASS' : 'FAIL';
+      const hasAllReadings = [beaker_1_ph_1, beaker_1_ph_2, beaker_2_ph_1, beaker_2_ph_2].every(
+        (value) => value !== undefined && value !== null && value !== '' && !Number.isNaN(Number(value))
+      );
+
+      if (hasAllReadings) {
+        const beaker1Average = (parseFloat(beaker_1_ph_1) + parseFloat(beaker_1_ph_2)) / 2;
+        const beaker1Difference = Math.abs(parseFloat(beaker_1_ph_1) - parseFloat(beaker_1_ph_2));
+        const beaker2Average = (parseFloat(beaker_2_ph_1) + parseFloat(beaker_2_ph_2)) / 2;
+        const beaker2Difference = Math.abs(parseFloat(beaker_2_ph_1) - parseFloat(beaker_2_ph_2));
+
+        const beaker_1_avg_passes = beaker1Average >= client_spec_min_avg_ph;
+        const beaker_1_difference_passes = beaker1Difference <= client_spec_max_difference;
+        const beaker_2_avg_passes = beaker2Average >= client_spec_min_avg_ph;
+        const beaker_2_difference_passes = beaker2Difference <= client_spec_max_difference;
+
+        passFailResult =
+          beaker_1_avg_passes &&
+          beaker_1_difference_passes &&
+          beaker_2_avg_passes &&
+          beaker_2_difference_passes
+            ? 'PASS'
+            : 'FAIL';
 
         calculatedResults = {
-          average_pH: Math.round(average_pH * 100) / 100,
-          difference: Math.round(difference * 100) / 100,
+          beaker_1_average: Math.round(beaker1Average * 100) / 100,
+          beaker_1_difference: Math.round(beaker1Difference * 100) / 100,
+          beaker_2_average: Math.round(beaker2Average * 100) / 100,
+          beaker_2_difference: Math.round(beaker2Difference * 100) / 100,
+          average_pH: Math.round(((beaker1Average + beaker2Average) / 2) * 100) / 100,
+          difference: Math.round(Math.max(beaker1Difference, beaker2Difference) * 100) / 100,
           client_spec_min_avg_ph,
           client_spec_max_difference,
-          avg_ph_passes,
-          difference_passes,
+          beaker_1_avg_passes,
+          beaker_1_difference_passes,
+          beaker_2_avg_passes,
+          beaker_2_difference_passes,
           result: passFailResult
         };
       }
@@ -298,7 +325,7 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Min Average pH
+                  Min Average pH (per beaker)
                   <span className="ml-1 px-1 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Client Spec</span>
                 </label>
                 <input
@@ -312,7 +339,7 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Max Difference
+                  Max Reading Difference (per beaker)
                   <span className="ml-1 px-1 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Client Spec</span>
                 </label>
                 <input
@@ -327,29 +354,25 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Beaker 1 pH</label>
-              <input
-                type="number"
-                step="0.1"
-                value={inputData.beaker_1_ph || ''}
-                onChange={(e) => setInputData({...inputData, beaker_1_ph: parseFloat(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                placeholder="0.0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Beaker 2 pH</label>
-              <input
-                type="number"
-                step="0.1"
-                value={inputData.beaker_2_ph || ''}
-                onChange={(e) => setInputData({...inputData, beaker_2_ph: parseFloat(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                placeholder="0.0"
-              />
-            </div>
+          <div className="space-y-4">
+            {[
+              { label: 'Beaker 1 — Reading 1', key: 'beaker_1_ph_1' },
+              { label: 'Beaker 1 — Reading 2', key: 'beaker_1_ph_2' },
+              { label: 'Beaker 2 — Reading 1', key: 'beaker_2_ph_1' },
+              { label: 'Beaker 2 — Reading 2', key: 'beaker_2_ph_2' }
+            ].map(({ label, key }) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={inputData[key] || ''}
+                  onChange={(e) => setInputData({ ...inputData, [key]: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="0.0"
+                />
+              </div>
+            ))}
           </div>
         </div>
       );

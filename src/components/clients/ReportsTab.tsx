@@ -1,76 +1,116 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Download, Send, Eye, Calendar, Filter } from 'lucide-react';
+import { publicApiUrl } from '@/lib/apiBase';
+import { FileText, Download, Calendar, Filter } from 'lucide-react';
 
 interface Report {
   id: string;
-  reportNumber: string;
-  clientName: string;
-  ordersCovered: string[];
-  totalTests: number;
-  passedTests: number;
-  failedTests: number;
-  generatedDate: string;
-  status: 'draft' | 'sent';
-  sentDate?: string;
+  report_url: string;
+  template_name: string;
+  client_name: string;
+  article_test_id: string;
+  test_name: string;
+  result: string;
+  generated_at: string;
+  report_status: 'generated' | 'failed';
 }
 
 export default function ReportsTab() {
-  const [reports] = useState<Report[]>([
-    {
-      id: '1',
-      reportNumber: 'RPT-VRL-001',
-      clientName: 'Nike Inc.',
-      ordersCovered: ['ORD-001', 'ORD-003'],
-      totalTests: 14,
-      passedTests: 12,
-      failedTests: 2,
-      generatedDate: '2024-03-18',
-      status: 'sent',
-      sentDate: '2024-03-18'
-    },
-    {
-      id: '2',
-      reportNumber: 'RPT-VRL-002',
-      clientName: 'Adidas AG',
-      ordersCovered: ['ORD-002'],
-      totalTests: 6,
-      passedTests: 6,
-      failedTests: 0,
-      generatedDate: '2024-03-17',
-      status: 'draft'
-    }
-  ]);
+  const [reports, setReports] = useState<Report[]>([]);
 
-  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'generated' | 'failed'>('all');
+  const [isRunningBulkAction, setIsRunningBulkAction] = useState(false);
+  const [bulkActionMessage, setBulkActionMessage] = useState('');
 
-  const filteredReports = reports.filter(report => 
-    filterStatus === 'all' || report.status === filterStatus
+  React.useEffect(() => {
+    fetch(publicApiUrl('/api/reports/history'))
+      .then((r) => (r.ok ? r.json() : { reports: [] }))
+      .then((data) => setReports(Array.isArray(data.reports) ? data.reports : []))
+      .catch(() => setReports([]));
+  }, []);
+
+  const filteredReports = reports.filter(report =>
+    filterStatus === 'all' || report.report_status === filterStatus
   );
 
-  const getStatusBadge = (status: Report['status']) => {
-    return status === 'sent' ? (
+  const getStatusBadge = (status: Report['report_status']) => {
+    return status === 'generated' ? (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-        Sent
+        Generated
       </span>
     ) : (
-      <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-        Draft
+      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+        Failed
       </span>
     );
   };
 
-  const getOverallResult = (passed: number, failed: number) => {
-    return failed === 0 ? (
-      <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
-        ALL TESTS PASSED
-      </span>
-    ) : (
-      <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
-        {failed} TESTS FAILED
-      </span>
-    );
+  const triggerDownload = (url: string, fileName?: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    if (fileName) {
+      link.download = fileName;
+    }
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadAuthenticatedBackup = async (downloadPath: string, filename: string) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(publicApiUrl(downloadPath), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || 'Failed to download backup');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBackupAndDownloadAll = async () => {
+    setIsRunningBulkAction(true);
+    setBulkActionMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(publicApiUrl('/api/admin/maintenance/backup-and-reports'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to run backup');
+      }
+
+      if (payload.backupDownloadPath && payload.backupFilename) {
+        await downloadAuthenticatedBackup(payload.backupDownloadPath, payload.backupFilename);
+      }
+
+      const reportCount = payload.totalReports || 0;
+      setBulkActionMessage(
+        `Full backup downloaded (${payload.backupFilename || 'backup.zip'}). Includes database, ${reportCount} reports, uploads, and templates.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to run backup';
+      setBulkActionMessage(message);
+    } finally {
+      setIsRunningBulkAction(false);
+    }
   };
 
   return (
@@ -81,21 +121,36 @@ export default function ReportsTab() {
           <h2 className="text-xl font-semibold text-slate-900">Reports</h2>
           <p className="text-slate-600">View and manage test reports across all clients</p>
         </div>
-        
-        {/* Filter */}
-        <div className="flex items-center space-x-2">
-          <Filter className="w-4 h-4 text-slate-500" />
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'draft' | 'sent')}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleBackupAndDownloadAll}
+            disabled={isRunningBulkAction}
+            className="px-3 py-2 rounded-lg text-sm bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 transition-colors"
           >
-            <option value="all">All Reports</option>
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-          </select>
+            {isRunningBulkAction ? 'Creating backup...' : 'Full Backup'}
+          </button>
+
+          {/* Filter */}
+          <div className="flex items-center space-x-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'generated' | 'failed')}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="all">All Reports</option>
+              <option value="generated">Generated</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
         </div>
       </div>
+      {bulkActionMessage ? (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          {bulkActionMessage}
+        </div>
+      ) : null}
 
       {/* Reports Table */}
       {filteredReports.length > 0 ? (
@@ -105,16 +160,13 @@ export default function ReportsTab() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Report No.
+                    Report ID
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Client
+                    Client/Test
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Orders Covered
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Tests
+                    Template
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
                     Result
@@ -134,55 +186,35 @@ export default function ReportsTab() {
                 {filteredReports.map((report, index) => (
                   <tr key={report.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900">{report.reportNumber}</div>
+                      <div className="text-sm font-medium text-slate-900">{report.id.slice(0, 8)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">{report.clientName}</div>
+                      <div className="text-sm text-slate-900">{report.client_name || 'Unassigned'}</div>
+                      <div className="text-xs text-slate-500">{report.test_name}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">
-                        {report.ordersCovered.join(', ')}
-                      </div>
+                      <div className="text-sm text-slate-900">{report.template_name || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">
-                        <span className="text-green-600 font-medium">{report.passedTests}</span>
-                        <span className="text-slate-400 mx-1">/</span>
-                        <span className="text-red-600 font-medium">{report.failedTests}</span>
-                        <span className="text-slate-400 mx-1">/</span>
-                        <span className="text-slate-600">{report.totalTests}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getOverallResult(report.passedTests, report.failedTests)}
+                      <span className={report.result === 'PASS' ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
+                        {report.result || '—'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-1 text-sm text-slate-600">
                         <Calendar className="w-4 h-4" />
-                        <span>{new Date(report.generatedDate).toLocaleDateString()}</span>
+                        <span>{new Date(report.generated_at).toLocaleDateString()}</span>
                       </div>
-                      {report.status === 'sent' && report.sentDate && (
-                        <div className="text-xs text-slate-500 mt-1">
-                          Sent {new Date(report.sentDate).toLocaleDateString()}
-                        </div>
-                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(report.status)}
+                      {getStatusBadge(report.report_status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                        <button className="flex items-center space-x-1 px-2 py-1 text-green-600 hover:bg-green-50 rounded transition-colors">
-                          <Eye className="w-4 h-4" />
-                          <span className="text-sm">View</span>
-                        </button>
-                        {report.status === 'draft' && (
-                          <button className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors">
-                            <Send className="w-4 h-4" />
-                            <span className="text-sm">Send</span>
-                          </button>
-                        )}
-                        <button className="flex items-center space-x-1 px-2 py-1 text-slate-600 hover:bg-slate-50 rounded transition-colors">
+                        <button
+                          onClick={() => triggerDownload(publicApiUrl(`/api/reports/download/${report.article_test_id}`))}
+                          className="flex items-center space-x-1 px-2 py-1 text-slate-600 hover:bg-slate-50 rounded transition-colors"
+                        >
                           <Download className="w-4 h-4" />
                           <span className="text-sm">Download</span>
                         </button>

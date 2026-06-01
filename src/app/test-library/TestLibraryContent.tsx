@@ -1,8 +1,8 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
-import { useState, useEffect } from 'react';
-import { Search, Filter, ChevronRight } from 'lucide-react';
+import { useState, useEffect, ChangeEvent, useCallback } from 'react';
+import { Search, Filter } from 'lucide-react';
 import TestCard from '@/components/TestCard';
 import TestDrawer from '@/components/TestDrawer';
 import { Test, Stats } from '@/types/test';
@@ -16,13 +16,10 @@ export default function TestLibraryContent() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [standardFilter, setStandardFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<Array<{ template_key: string; template_name: string; template_path: string }>>([]);
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
 
-  useEffect(() => {
-    fetchTests();
-    fetchStats();
-  }, []);
-
-  const fetchTests = async () => {
+  const fetchTests = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const queryParams = new URLSearchParams();
@@ -46,9 +43,9 @@ export default function TestLibraryContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, categoryFilter, standardFilter]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(publicApiUrl('/api/tests/stats'), {
@@ -65,11 +62,27 @@ export default function TestLibraryContent() {
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  };
+  }, []);
+
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const response = await fetch(publicApiUrl('/api/reports/templates'));
+      if (!response.ok) return;
+      const data = await response.json();
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    fetchTemplates();
+  }, [fetchStats, fetchTemplates]);
 
   useEffect(() => {
     fetchTests();
-  }, [searchTerm, categoryFilter, standardFilter]);
+  }, [fetchTests]);
 
   const handleViewDetails = (test: Test) => {
     setSelectedTest(test);
@@ -97,6 +110,53 @@ export default function TestLibraryContent() {
     }
   };
 
+  const handleTemplateUpdate = async (testId: string, templateKey: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const template = templates.find((t) => t.template_key === templateKey);
+      const response = await fetch(publicApiUrl(`/api/tests/${testId}/template`), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          templateKey: template?.template_key || templateKey,
+          templateName: template?.template_name || templateKey,
+          templatePath: template?.template_path || null
+        })
+      });
+      if (response.ok) fetchTests();
+    } catch (error) {
+      console.error('Error updating template mapping:', error);
+    }
+  };
+
+  const handleTemplateUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingTemplate(true);
+      const formData = new FormData();
+      formData.append('template', file);
+      formData.append('templateName', file.name.replace(/\.docx$/i, ''));
+      const response = await fetch(publicApiUrl('/api/reports/templates/upload'), {
+        method: 'POST',
+        body: formData
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to upload template');
+      }
+      await fetchTemplates();
+    } catch (error) {
+      console.error('Template upload error:', error);
+    } finally {
+      setUploadingTemplate(false);
+      event.target.value = '';
+    }
+  };
+
   const filteredTests = tests.filter(test => {
     const matchesSearch = !searchTerm || 
       test.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -118,6 +178,18 @@ export default function TestLibraryContent() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Test Library</h1>
               <p className="text-gray-600 mt-1">Manage and view laboratory test specifications</p>
+            </div>
+            <div>
+              <label className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700">
+                {uploadingTemplate ? 'Uploading...' : 'Upload Template'}
+                <input
+                  type="file"
+                  accept=".docx"
+                  className="hidden"
+                  onChange={handleTemplateUpload}
+                  disabled={uploadingTemplate}
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -246,6 +318,8 @@ export default function TestLibraryContent() {
                 test={test}
                 onTestClick={handleViewDetails}
                 onCategoryChange={handleCategoryUpdate}
+                templates={templates}
+                onTemplateChange={handleTemplateUpdate}
               />
             ))}
           </div>
@@ -262,6 +336,8 @@ export default function TestLibraryContent() {
             setSelectedTest(null);
           }}
           onCategoryChange={handleCategoryUpdate}
+          templates={templates}
+          onTemplateChange={handleTemplateUpdate}
         />
       )}
     </div>

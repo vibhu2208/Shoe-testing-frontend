@@ -11,9 +11,11 @@ interface TestDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryChange: (testId: string, newCategory: string) => void;
+  templates: Array<{ template_key: string; template_name: string }>;
+  onTemplateChange: (testId: string, templateKey: string) => void;
 }
 
-export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: TestDrawerProps) {
+export default function TestDrawer({ test, isOpen, onClose, onCategoryChange, templates, onTemplateChange }: TestDrawerProps) {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
 
   const displayTest = useMemo(
     () => (test ? enrichTestForDisplay(test) : null),
-    [test?.id]
+    [test]
   );
 
   if (!test || !displayTest) return null;
@@ -154,6 +156,23 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                     <dt className="text-sm font-medium text-slate-500">Description</dt>
                     <dd className="text-sm text-slate-900">{test.description}</dd>
                   </div>
+                  <div>
+                    <dt className="text-sm font-medium text-slate-500">Report Template</dt>
+                    <dd className="text-sm text-slate-900">
+                      <select
+                        value={(test.template_key || test.templateKey || '') as string}
+                        onChange={(e) => onTemplateChange(test.id, e.target.value)}
+                        className="mt-1 w-full border border-slate-300 rounded px-2 py-2 text-sm"
+                      >
+                        <option value="">Select template</option>
+                        {templates.map((template) => (
+                          <option key={template.template_key} value={template.template_key}>
+                            {template.template_name}
+                          </option>
+                        ))}
+                      </select>
+                    </dd>
+                  </div>
                 </dl>
               </section>
 
@@ -178,14 +197,16 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                           </td>
                         </tr>
                       ) : null}
-                      {Object.entries(inputParameters).map(([key, param]: [string, any], index) => (
+                      {Object.entries(inputParameters).map(([key, param]: [string, unknown], index) => {
+                        const normalizedParam = typeof param === 'object' && param !== null ? (param as Record<string, unknown>) : {};
+                        return (
                         <tr key={key} className={index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
                           <td className="py-2 text-slate-900">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                          <td className="py-2 text-slate-600">{param.type}</td>
-                          <td className="py-2 text-slate-600">{param.default !== null ? param.default.toString() : '—'}</td>
-                          <td className="py-2 text-slate-600">{param.notes}</td>
+                          <td className="py-2 text-slate-600">{String(normalizedParam.type || '—')}</td>
+                          <td className="py-2 text-slate-600">{normalizedParam.default != null ? String(normalizedParam.default) : '—'}</td>
+                          <td className="py-2 text-slate-600">{String(normalizedParam.notes || '—')}</td>
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                   </table>
                 </div>
@@ -198,23 +219,25 @@ export default function TestDrawer({ test, isOpen, onClose, onCategoryChange }: 
                   {calculationSteps.length === 0 ? (
                     <p className="text-sm text-slate-500">No calculation steps configured for this test.</p>
                   ) : null}
-                  {calculationSteps.map((step: any, index: number) => (
+                  {calculationSteps.map((step: unknown, index: number) => {
+                    const normalizedStep = typeof step === 'object' && step !== null ? (step as Record<string, unknown>) : {};
+                    return (
                     <div key={index} className="space-y-2">
                       <div className="bg-slate-100 rounded p-3">
-                        <div className="text-sm font-medium text-slate-700 mb-1">Step {step.step}</div>
-                        <code className="text-sm font-mono text-green-700">{step.formula}</code>
+                        <div className="text-sm font-medium text-slate-700 mb-1">Step {String(normalizedStep.step || index + 1)}</div>
+                        <code className="text-sm font-mono text-green-700">{String(normalizedStep.formula || '—')}</code>
                       </div>
-                      <p className="text-sm text-slate-600">{step.description}</p>
+                      <p className="text-sm text-slate-600">{String(normalizedStep.description || '—')}</p>
                       
                       {/* Example for first step of SATRA-TM-174 */}
-                      {test.id === 'SATRA-TM-174' && step.step === 1 && (
+                      {test.id === 'SATRA-TM-174' && Number(normalizedStep.step) === 1 && (
                         <div className="border-l-4 border-green-500 bg-green-50 p-3 rounded-r">
                           <div className="text-sm font-medium text-green-800 mb-1">Example:</div>
                           <code className="text-sm font-mono text-green-700">(189 + 188 + 189) / 3 = 188.67 gm</code>
                         </div>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
               </section>
 

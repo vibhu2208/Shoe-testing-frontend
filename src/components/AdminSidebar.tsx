@@ -15,7 +15,8 @@ import {
   ChevronRight,
   TestTube,
   Building2,
-  RotateCw
+  RotateCw,
+  Archive
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -48,6 +49,7 @@ export default function AdminSidebar({
     { id: 'periodic', label: 'Periodic tests', icon: RotateCw, href: '/admin/periodic-tests' },
     { id: 'tests', label: 'Test Library', icon: TestTube, href: '/admin/test-library' },
     { id: 'users', label: 'User Management', icon: Users, href: '/admin/users' },
+    { id: 'backup', label: 'Data Backup', icon: Archive, href: '/admin/backup' },
   ];
 
   const handleLogout = () => {

@@ -9,6 +9,12 @@ export interface Test {
   input_parameters: any;
   calculation_steps: any[];
   pass_fail_logic: any;
+  templateName?: string | null;
+  templatePath?: string | null;
+  templateKey?: string | null;
+  template_name?: string | null;
+  template_path?: string | null;
+  template_key?: string | null;
 }
 
 export interface Stats {

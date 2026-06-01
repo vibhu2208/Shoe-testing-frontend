@@ -1,7 +1,7 @@
 'use client';
 
 import { publicApiUrl } from '@/lib/apiBase';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Clock, FileText, AlertTriangle, RotateCw, Download } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import TesterResultEntry from '@/components/tester/TesterResultEntry';
@@ -28,6 +28,10 @@ interface TestDetail {
   result: string | null;
   result_data: Record<string, unknown> | null;
   submitted_at: string | null;
+  report_url?: string | null;
+  report_generated_at?: string | null;
+  template_key?: string | null;
+  template_name?: string | null;
   is_periodic?: boolean | null;
   periodic_schedule_id?: string | null;
   periodic_run_number?: number | null;
@@ -62,7 +66,7 @@ export default function TesterTestDetailPage() {
     }
   };
 
-  const fetchTestDetail = async (testId: string) => {
+  const fetchTestDetail = useCallback(async (testId: string) => {
     setLoading(true);
     try {
       const testerId = getCurrentTesterId();
@@ -82,13 +86,13 @@ export default function TesterTestDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (params.id) {
       fetchTestDetail(params.id as string);
     }
-  }, [params.id]);
+  }, [params.id, fetchTestDetail]);
 
   useEffect(() => {
     if (!test?.periodic_schedule_id) {
@@ -155,6 +159,27 @@ export default function TesterTestDetailPage() {
     } finally {
       setCreatingNextCycle(false);
     }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!test) return;
+    try {
+      const response = await fetch(publicApiUrl(`/api/reports/generate/${test.id}`), { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Failed to generate report');
+        return;
+      }
+      await fetchTestDetail(test.id);
+      alert('Report generated successfully');
+    } catch {
+      alert('Failed to generate report');
+    }
+  };
+
+  const handleDownloadReport = () => {
+    if (!test?.id) return;
+    window.open(publicApiUrl(`/api/reports/download/${test.id}`), '_blank');
   };
 
   const getStatusColor = (status: string) => {
@@ -591,6 +616,26 @@ export default function TesterTestDetailPage() {
                   </button>
                 </div>
               ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateReport}
+                  className="inline-flex items-center gap-2 rounded-md border border-green-700 bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+                >
+                  <FileText className="h-4 w-4" />
+                  Generate Report
+                </button>
+                {test.report_url && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadReport}
+                    className="inline-flex items-center gap-2 rounded-md border border-black/20 bg-white px-4 py-2 text-sm font-medium text-black hover:bg-black/5"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Report
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

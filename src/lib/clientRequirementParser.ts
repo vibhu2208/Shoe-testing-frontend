@@ -52,8 +52,8 @@ export function parseClientSpecsFromRequirement(
     case 'SATRA-TM-31': {
       const dry = t.match(/dry[\s\S]*?(?:≥|>=|min(?:imum)?)?\s*([\d,]+)\s*cycles/i);
       const wet = t.match(/wet[\s\S]*?(?:≥|>=|min(?:imum)?)?\s*([\d,]+)\s*cycles/i);
-      if (dry) specs.client_spec_dry_cycles = String(parseInt(dry[1].replace(/,/g, ''), 10));
-      if (wet) specs.client_spec_wet_cycles = String(parseInt(wet[1].replace(/,/g, ''), 10));
+      if (dry) specs.client_spec_dry_cycles = parseInt(dry[1].replace(/,/g, ''), 10);
+      if (wet) specs.client_spec_wet_cycles = parseInt(wet[1].replace(/,/g, ''), 10);
       break;
     }
     case 'PH-001': {

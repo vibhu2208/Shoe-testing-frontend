@@ -17,11 +17,24 @@ export default function TestLibraryPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [standardFilter, setStandardFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<Array<{ template_key: string; template_name: string; template_path: string }>>([]);
 
   useEffect(() => {
     fetchTests();
     fetchStats();
+    fetchTemplates();
   }, [searchTerm, categoryFilter, standardFilter]);
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await fetch(publicApiUrl('/api/reports/templates'));
+      if (!response.ok) return;
+      const data = await response.json();
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
 
   const fetchTests = async () => {
     try {
@@ -95,6 +108,42 @@ export default function TestLibraryPage() {
       }
     } catch (error) {
       console.error('Error updating category:', error);
+    }
+  };
+
+  const handleTemplateChange = async (testId: string, templateKey: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const template = templates.find((t) => t.template_key === templateKey);
+      const response = await fetch(publicApiUrl(`/api/tests/${testId}/template`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          templateKey: template?.template_key || templateKey,
+          templateName: template?.template_name || templateKey,
+          templatePath: template?.template_path || null
+        })
+      });
+
+      if (response.ok) {
+        const updated = {
+          template_key: template?.template_key || templateKey,
+          template_name: template?.template_name || templateKey,
+          templateKey: template?.template_key || templateKey,
+          templateName: template?.template_name || templateKey
+        };
+        setTests(tests.map((test) =>
+          test.id === testId ? { ...test, ...updated } : test
+        ));
+        if (selectedTest?.id === testId) {
+          setSelectedTest({ ...selectedTest, ...updated });
+        }
+      }
+    } catch (error) {
+      console.error('Error updating template mapping:', error);
     }
   };
 
@@ -214,6 +263,8 @@ export default function TestLibraryPage() {
                 test={test}
                 onTestClick={handleTestClick}
                 onCategoryChange={handleCategoryChange}
+                templates={templates}
+                onTemplateChange={handleTemplateChange}
               />
             ))}
           </div>
@@ -233,6 +284,8 @@ export default function TestLibraryPage() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onCategoryChange={handleCategoryChange}
+        templates={templates}
+        onTemplateChange={handleTemplateChange}
       />
     </div>
   );

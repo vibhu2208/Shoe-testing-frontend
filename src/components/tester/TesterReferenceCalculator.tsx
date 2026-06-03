@@ -275,7 +275,7 @@ export default function TesterReferenceCalculator({
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="text-left py-3 px-4 font-medium text-slate-700">Point</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-700">Force (N)</th>
+                    <th className="text-left py-3 px-4 font-medium text-slate-700">Force (kg)</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-700">Width (mm)</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-700">Bond Strength</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-700">Result</th>
@@ -284,7 +284,7 @@ export default function TesterReferenceCalculator({
                 <tbody>
                   {Array.from({ length: 16 }, (_, i) => {
                     const pointData = inputData.point_data?.[i] || { point_number: i + 1, force_applied: 0, width: 0 };
-                    const bondStrength = pointData.width > 0 ? (pointData.force_applied / pointData.width).toFixed(2) : '0.00';
+                    const bondStrength = pointData.width > 0 ? (pointData.force_applied * 9.8 / pointData.width).toFixed(2) : '0.00';
                     const passes = parseFloat(bondStrength) >= (clientSpecs.client_spec_min_bond_strength || 0);
                     
                     return (

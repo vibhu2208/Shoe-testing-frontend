@@ -2,15 +2,19 @@
 
 import { publicApiUrl, publicAssetUrl } from '@/lib/apiBase';
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { ImagePlus, X } from 'lucide-react';
 import TestCalculator from '@/components/TestCalculator';
 import { Test } from '@/types/test';
 import { parseClientSpecsFromRequirement, resolveLibraryTestId } from '@/lib/clientRequirementParser';
+import { LAB_CARD } from '@/components/tester/TestExecutionWorkspace';
 
 interface TesterResultEntryProps {
   articleTestId: string;
   inhouseTestId: string | null;
   testStandard: string;
   clientRequirement: string;
+  /** Hide client requirement inside calculator when shown in page sidebar */
+  hideClientRequirement?: boolean;
   onSubmitted?: (payload?: {
     periodicNextTestId?: string | null;
     periodicScheduleEnded?: boolean;
@@ -48,6 +52,7 @@ export default function TesterResultEntry({
   inhouseTestId,
   testStandard,
   clientRequirement,
+  hideClientRequirement = false,
   onSubmitted
 }: TesterResultEntryProps) {
   const [libraryTest, setLibraryTest] = useState<Test | null>(null);
@@ -308,20 +313,18 @@ export default function TesterResultEntry({
     setPhotos(data.photos || []);
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="rounded-lg border border-green-200 bg-green-50/60 px-4 py-3">
-        <p className="text-sm font-medium text-green-900">
-          Result entry — {libraryTest.standard} {libraryTest.name}
-        </p>
-        <p className="mt-1 text-xs text-green-800">
-          Values are calculated live. Client spec fields are pre-filled where we could read numbers from the requirement text; adjust if needed.
-        </p>
-      </div>
+  const photoQuotaLabel = photoConfig.required
+    ? `${Math.min(uploadedCount, photoConfig.min)}/${photoConfig.min} Uploaded`
+    : `${uploadedCount} uploaded`;
+  const validationReady =
+    Boolean(lastPassFail) && (!photoConfig.required || uploadedCount >= photoConfig.min);
 
+  return (
+    <div className="space-y-4 pb-28">
       <TestCalculator
         test={libraryTest}
         variant="tester"
+        hideClientRequirement={hideClientRequirement}
         clientRequirementText={clientRequirement}
         initialInputOverrides={parsed.input}
         initialClientSpecsOverrides={parsed.specs}
@@ -329,19 +332,24 @@ export default function TesterResultEntry({
       />
 
       {photoConfig.slots.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <p className="text-sm font-semibold text-black">Photo Evidence</p>
-          <p className="mt-1 text-xs text-slate-600">{photoConfig.helper}</p>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className={`${LAB_CARD} p-4`}>
+          <h3 className="text-sm font-semibold text-[#111111]">Photo Evidence</h3>
+          <p className="mt-0.5 text-xs text-[#111111]/55">{photoConfig.helper}</p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {photoConfig.slots.map((slotCfg) => {
               const existing = photos.find((p) => Number(p.slot) === slotCfg.slot);
               return (
-                <div key={slotCfg.slot} className="space-y-2">
-                  <label className="text-xs text-black">
-                    {slotCfg.label} {!slotCfg.optional ? <span className="text-red-600">*</span> : <span className="text-slate-400">(optional)</span>}
+                <div key={slotCfg.slot} className="space-y-1.5">
+                  <label className="text-xs font-semibold text-[#111111]">
+                    {slotCfg.label}{' '}
+                    {!slotCfg.optional ? (
+                      <span className="text-red-600">*</span>
+                    ) : (
+                      <span className="font-normal text-[#111111]/40">(optional)</span>
+                    )}
                   </label>
                   <div
-                    className="relative flex h-32 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50"
+                    className="group relative flex h-36 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-[#C8E6C9] bg-[#FAFAFA] transition-colors hover:border-[#2E7D32] hover:bg-[#E8F5E9]/40"
                     onClick={() => document.getElementById(`photo-slot-${slotCfg.slot}`)?.click()}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
@@ -362,24 +370,56 @@ export default function TesterResultEntry({
                     />
                     {existing ? (
                       <>
-                        <img src={`${publicAssetUrl(existing.url)}`} alt={existing.label} className="h-full w-full rounded-lg object-cover" />
-                        <button type="button" onClick={(e) => { e.stopPropagation(); removePhoto(slotCfg.slot); }} className="absolute right-2 top-2 rounded bg-white/90 px-1 text-xs text-black">X</button>
+                        <img
+                          src={`${publicAssetUrl(existing.url)}`}
+                          alt={existing.label}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removePhoto(slotCfg.slot);
+                          }}
+                          className="absolute right-2 top-2 rounded-full bg-white/95 p-1 text-[#111111] shadow hover:bg-white"
+                          aria-label="Remove photo"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </>
                     ) : uploadingSlot === slotCfg.slot ? (
-                      <div className="w-4/5">
-                        <div className="h-2 w-full rounded bg-slate-200">
-                          <div className="h-2 rounded bg-green-600" style={{ width: `${uploadProgress[slotCfg.slot] || 0}%` }} />
+                      <div className="w-4/5 px-2">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-[#E8F5E9]">
+                          <div
+                            className="h-2 rounded-full bg-[#2E7D32] transition-all"
+                            style={{ width: `${uploadProgress[slotCfg.slot] || 0}%` }}
+                          />
                         </div>
-                        <p className="mt-2 text-center text-xs text-slate-600">Uploading... {uploadProgress[slotCfg.slot] || 0}%</p>
+                        <p className="mt-2 text-center text-xs text-[#111111]/60">
+                          Uploading… {uploadProgress[slotCfg.slot] || 0}%
+                        </p>
                       </div>
                     ) : (
-                      <p className="px-2 text-center text-xs text-slate-500">Click or drag photo</p>
+                      <div className="flex flex-col items-center gap-2 px-3 text-center">
+                        <ImagePlus className="h-8 w-8 text-[#2E7D32]/50 group-hover:text-[#2E7D32]" aria-hidden />
+                        <p className="text-xs text-[#111111]/50 group-hover:text-[#2E7D32]">
+                          Click or drag to upload
+                        </p>
+                      </div>
                     )}
                   </div>
                   {uploadErrors[slotCfg.slot] && (
                     <p className="text-xs text-red-600">
                       {uploadErrors[slotCfg.slot]}{' '}
-                      <button type="button" onClick={() => document.getElementById(`photo-slot-${slotCfg.slot}`)?.click()} className="underline">Retry</button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          document.getElementById(`photo-slot-${slotCfg.slot}`)?.click()
+                        }
+                        className="underline"
+                      >
+                        Retry
+                      </button>
                     </p>
                   )}
                 </div>
@@ -389,34 +429,70 @@ export default function TesterResultEntry({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-black/15 bg-white p-4">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E0E0E0] bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+        role="region"
+        aria-label="Submission actions"
+      >
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap gap-4 text-xs sm:text-sm">
+            {photoConfig.slots.length > 0 && (
+              <div>
+                <span className="text-[#111111]/50">Required Photos</span>
+                <p className="font-semibold text-[#111111]">
+                  {photoConfig.required ? photoQuotaLabel : `${uploadedCount} (optional)`}
+                </p>
+              </div>
+            )}
+            <div>
+              <span className="text-[#111111]/50">Validation</span>
+              <p
+                className={`font-semibold ${
+                  validationReady ? 'text-[#2E7D32]' : 'text-[#111111]/50'
+                }`}
+              >
+                {validationReady ? 'Ready For Submission' : 'Complete calculations & photos'}
+              </p>
+            </div>
+            {lastPassFail && (
+              <div>
+                <span className="text-[#111111]/50">Result Status</span>
+                <p
+                  className={`font-bold ${
+                    lastPassFail === 'PASS' ? 'text-[#2E7D32]' : 'text-[#111111]'
+                  }`}
+                >
+                  {lastPassFail}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {photoConfig.required && photosMissing > 0 && (
+              <p className="hidden text-xs text-red-600 sm:block">
+                {photosMissing} more required photo(s)
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+              title={
+                photoConfig.required && photosMissing > 0
+                  ? `${photosMissing} more photo(s) required`
+                  : ''
+              }
+              className="rounded-lg bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? 'Submitting…' : 'Submit Test'}
+            </button>
+          </div>
+        </div>
         {photoConfig.required && photosMissing > 0 && (
-          <div className="w-full rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {photosMissing} photo(s) required before you can submit this test.
+          <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-center text-xs text-red-700 sm:hidden">
+            {photosMissing} photo(s) required before submission.
           </div>
-        )}
-        {!photoConfig.required && photoConfig.slots.length > 0 && uploadedCount === 0 && (
-          <div className="w-full rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            No photos uploaded - photos are recommended for verification.
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          title={photoConfig.required && photosMissing > 0 ? `${photosMissing} more photo(s) required` : ''}
-          className="rounded-lg bg-green-700 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting ? 'Submitting…' : 'Submit Final Result'}
-        </button>
-        {lastPassFail && (
-          <span
-            className={`text-sm font-semibold ${
-              lastPassFail === 'PASS' ? 'text-green-800' : 'text-black'
-            }`}
-          >
-            Calculated outcome: {lastPassFail}
-          </span>
         )}
       </div>
     </div>

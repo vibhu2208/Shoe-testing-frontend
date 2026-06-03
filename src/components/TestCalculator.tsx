@@ -13,6 +13,8 @@ interface TestCalculatorProps {
   test: Test;
   variant?: 'admin' | 'tester';
   clientRequirementText?: string;
+  /** When true, client requirement block is omitted (e.g. shown in page sidebar). */
+  hideClientRequirement?: boolean;
   initialInputOverrides?: Record<string, unknown>;
   initialClientSpecsOverrides?: Record<string, unknown>;
   onCalculationResult?: (payload: {
@@ -26,34 +28,48 @@ export default function TestCalculator({
   test,
   variant = 'admin',
   clientRequirementText,
+  hideClientRequirement = false,
   initialInputOverrides,
   initialClientSpecsOverrides,
   onCalculationResult
 }: TestCalculatorProps) {
   const isTester = variant === 'tester';
   const tc = {
-    label: isTester ? 'text-black' : 'text-slate-700',
+    label: isTester ? 'text-[#111111]' : 'text-slate-700',
     input:
       isTester
-        ? 'w-full px-3 py-2 border border-black/20 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-700 text-black placeholder:text-black/40'
+        ? 'w-full px-3 py-3 text-base border border-[#E0E0E0] rounded-lg focus:ring-2 focus:ring-[#2E7D32] focus:border-[#2E7D32] text-[#111111] placeholder:text-[#111111]/40'
         : 'w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-slate-900 placeholder-slate-400',
-    muted: isTester ? 'text-black/70' : 'text-slate-600',
-    borderLight: isTester ? 'border-black/10' : 'border-slate-100',
-    sectionBg: isTester ? 'bg-green-50/40' : 'bg-slate-50',
+    muted: isTester ? 'text-[#111111]/70' : 'text-slate-600',
+    borderLight: isTester ? 'border-[#E0E0E0]' : 'border-slate-100',
+    sectionBg: isTester ? 'bg-white' : 'bg-slate-50',
+    sectionCard: isTester
+      ? 'rounded-xl border border-[#E0E0E0] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+      : 'rounded-lg p-4 border border-transparent bg-slate-50',
     checkbox: isTester
-      ? 'rounded border-black/30 text-green-700 focus:ring-green-600'
+      ? 'h-5 w-5 rounded border-[#2E7D32] text-[#2E7D32] focus:ring-[#2E7D32]'
       : 'rounded border-slate-300 text-green-600 focus:ring-green-500',
+    checkboxRow: isTester
+      ? 'flex min-h-[52px] items-center gap-3 rounded-lg border border-[#C8E6C9] bg-white px-4 py-3 transition-colors hover:bg-[#E8F5E9]/50'
+      : '',
     clientReqWrap: isTester
-      ? 'rounded-lg border border-green-800/25 bg-green-50/80 p-4'
+      ? 'rounded-xl border border-[#C8E6C9] bg-[#E8F5E9] p-4'
       : 'rounded-lg border border-slate-200 bg-amber-50/80 p-4',
-    heading: isTester ? 'font-medium text-black mb-3' : 'font-medium text-slate-900 mb-3',
-    tableHead: isTester ? 'border-b border-black/15' : 'border-b border-slate-200',
-    resultsCard: isTester ? 'bg-white border border-black/15 rounded-lg p-4' : 'bg-white border border-slate-200 rounded-lg p-4',
+    heading: isTester
+      ? 'text-xs font-semibold uppercase tracking-wide text-[#111111]/50 mb-3'
+      : 'font-medium text-slate-900 mb-3',
+    sectionTitle: isTester
+      ? 'text-sm font-semibold text-[#111111] mb-3'
+      : 'font-medium text-slate-900 mb-4',
+    tableHead: isTester ? 'border-b border-[#C8E6C9]' : 'border-b border-slate-200',
+    resultsCard: isTester
+      ? 'rounded-xl border border-[#E0E0E0] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+      : 'bg-white border border-slate-200 rounded-lg p-4',
     passBadge: isTester
-      ? 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-green-700 text-white'
+      ? 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-[#2E7D32] text-white'
       : 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-green-100 text-green-800',
     failBadge: isTester
-      ? 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-black text-white'
+      ? 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-[#111111] text-white'
       : 'inline-flex items-center px-4 py-2 rounded-lg text-lg font-semibold bg-red-100 text-red-800',
   };
 
@@ -180,6 +196,20 @@ export default function TestCalculator({
     const value = isClientSpec ? clientSpecs[key] || '' : inputData[key] || '';
     
     if (param.type === 'boolean') {
+      const labelText = key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+      if (isTester) {
+        return (
+          <label className={tc.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={value || false}
+              onChange={(e) => handleInputChange(key, e.target.checked)}
+              className={tc.checkbox}
+            />
+            <span className={`text-sm font-medium ${tc.label}`}>{labelText}</span>
+          </label>
+        );
+      }
       return (
         <label className="flex items-center space-x-2">
           <input
@@ -188,9 +218,7 @@ export default function TestCalculator({
             onChange={(e) => handleInputChange(key, e.target.checked)}
             className={tc.checkbox}
           />
-          <span className={`text-sm ${tc.label}`}>
-            {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-          </span>
+          <span className={`text-sm ${tc.label}`}>{labelText}</span>
         </label>
       );
     }
@@ -255,7 +283,7 @@ export default function TestCalculator({
                 <thead>
                   <tr className={tc.tableHead}>
                     <th className="text-left py-2">Point</th>
-                    <th className="text-left py-2">Force (N)</th>
+                    <th className="text-left py-2">Force (kg)</th>
                     <th className="text-left py-2">Width (mm)</th>
                     <th className="text-left py-2">Bond Strength</th>
                     <th className="text-left py-2">Status</th>
@@ -264,7 +292,7 @@ export default function TestCalculator({
                 <tbody>
                   {Array.from({ length: 16 }, (_, i) => {
                     const pointData = inputData.point_data?.[i] || { point_number: i + 1, force_applied: 0, width: 0 };
-                    const bondStrength = pointData.width > 0 ? (pointData.force_applied / pointData.width).toFixed(2) : '0.00';
+                    const bondStrength = pointData.width > 0 ? (pointData.force_applied * 9.8 / pointData.width).toFixed(2) : '0.00';
                     const passes = parseFloat(bondStrength) >= (clientSpecs.client_spec_min_bond_strength || 0);
                     
                     return (
@@ -576,9 +604,12 @@ export default function TestCalculator({
 
     // Default form for other tests
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 gap-3 ${isTester ? '' : 'md:grid-cols-2 md:gap-4'}`}>
         {Object.entries(effectiveInputParameters).map(([key, param]: [string, any]) => (
-          <div key={key}>
+          <div
+            key={key}
+            className={isTester && param?.type === 'boolean' ? 'col-span-1' : isTester ? '' : ''}
+          >
             {renderInputField(key, param)}
           </div>
         ))}
@@ -592,28 +623,34 @@ export default function TestCalculator({
   };
 
   return (
-    <div className="space-y-6">
-      {clientRequirementText && (
+    <div className={isTester ? 'space-y-4' : 'space-y-6'}>
+      {clientRequirementText && !hideClientRequirement && (
         <div className={tc.clientReqWrap}>
-          <h5 className={isTester ? 'text-sm font-semibold text-black mb-1' : 'text-sm font-semibold text-slate-900 mb-1'}>Client requirement (from order)</h5>
-          <p className={isTester ? 'text-sm text-black whitespace-pre-wrap' : 'text-sm text-slate-800 whitespace-pre-wrap'}>{clientRequirementText}</p>
+          <h5 className={isTester ? 'text-xs font-bold uppercase tracking-wide text-[#1B5E20] mb-1' : 'text-sm font-semibold text-slate-900 mb-1'}>Client requirement (from order)</h5>
+          <p className={isTester ? 'text-sm text-[#111111] whitespace-pre-wrap' : 'text-sm text-slate-800 whitespace-pre-wrap'}>{clientRequirementText}</p>
         </div>
       )}
 
       {/* Input Form */}
-      <div className={`${tc.sectionBg} rounded-lg p-4 border ${isTester ? 'border-black/10' : 'border-transparent'}`}>
-        <h5 className={isTester ? 'font-medium text-black mb-4' : 'font-medium text-slate-900 mb-4'}>Input Parameters</h5>
+      <div className={isTester ? tc.sectionCard : `${tc.sectionBg} rounded-lg p-4 border border-transparent`}>
+        <h5 className={isTester ? tc.sectionTitle : 'font-medium text-slate-900 mb-4'}>
+          {isTester ? 'Test Parameters & Measurements' : 'Input Parameters'}
+        </h5>
         {renderSpecialCalculators()}
         
         {/* Calculation runs only when the user submits (not on every input change). */}
-        <div className={`mt-4 pt-4 border-t ${isTester ? 'border-black/10' : 'border-slate-200'}`}>
+        <div className={`mt-4 pt-4 border-t ${isTester ? 'border-[#E0E0E0]' : 'border-slate-200'}`}>
           <button
             type="button"
             onClick={() => calculateResults(inputData, clientSpecs)}
             disabled={loading}
-            className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={
+              isTester
+                ? 'rounded-lg bg-[#2E7D32] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1B5E20] disabled:cursor-not-allowed disabled:opacity-50'
+                : 'px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed'
+            }
           >
-            {loading ? 'Calculating...' : 'Submit'}
+            {loading ? 'Calculating...' : isTester ? 'Calculate Result' : 'Submit'}
           </button>
 
           {calculationError && (
@@ -640,7 +677,9 @@ export default function TestCalculator({
       {/* Results Display */}
       {results && (
         <div className={tc.resultsCard}>
-          <h5 className={isTester ? 'font-medium text-black mb-4' : 'font-medium text-slate-900 mb-4'}>Calculation Results</h5>
+          <h5 className={isTester ? 'text-sm font-semibold text-[#111111] mb-4' : 'font-medium text-slate-900 mb-4'}>
+            {isTester ? 'Result Entry' : 'Calculation Results'}
+          </h5>
           
           {/* Pass/Fail Badge */}
           <div className="mb-4">

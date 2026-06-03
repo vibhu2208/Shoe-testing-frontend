@@ -89,10 +89,10 @@ export const TEST_LIBRARY_METADATA: Record<string, TestMetadata> = {
   'SATRA-TM-281': {
     input_parameters: {
       client_spec_min_bond_strength: param('number', 2.5, 'Minimum bond strength (N/mm)'),
-      point_data: param('object', null, '16 points: force (N) and width (mm)')
+      point_data: param('object', null, '16 points: force (kg) and width (mm)')
     },
     calculation_steps: [
-      { step: 1, formula: 'bond_strength = force / width', description: 'Per-point calculation.' },
+      { step: 1, formula: 'bond_strength = force × 9.8 / width', description: 'Per-point calculation.' },
       { step: 2, formula: 'PASS if all points ≥ client minimum', description: 'All 16 points must pass.' }
     ],
     pass_fail_logic: {

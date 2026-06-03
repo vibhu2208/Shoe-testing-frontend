@@ -23,7 +23,7 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
       
       if (point_data && point_data.length > 0) {
         const point_results = point_data.map((point: any) => {
-          const bond_strength = point.width > 0 ? (point.force_applied / point.width) : 0;
+          const bond_strength = point.width > 0 ? (point.force_applied * 9.8 / point.width) : 0;
           const passes = bond_strength >= client_spec_min_bond_strength;
           return {
             ...point,
@@ -167,7 +167,7 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Array.from({ length: 16 }, (_, i) => {
                 const pointData = inputData.point_data?.[i] || { point_number: i + 1, force_applied: 0, width: 0 };
-                const bondStrength = pointData.width > 0 ? (pointData.force_applied / pointData.width).toFixed(2) : '0.00';
+                const bondStrength = pointData.width > 0 ? (pointData.force_applied * 9.8 / pointData.width).toFixed(2) : '0.00';
                 const passes = parseFloat(bondStrength) >= (inputData.client_spec_min_bond_strength || 0);
                 
                 return (
@@ -175,7 +175,7 @@ export default function ManualTestInput({ testStandard, clientRequirement }: Man
                     <div className="font-medium text-sm mb-2">Point {i + 1}</div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-slate-600 mb-1">Force (N)</label>
+                        <label className="block text-xs text-slate-600 mb-1">Force (kg)</label>
                         <input
                           type="number"
                           step="0.1"

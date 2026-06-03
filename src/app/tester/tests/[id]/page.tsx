@@ -2,10 +2,21 @@
 
 import { publicApiUrl } from '@/lib/apiBase';
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Clock, FileText, AlertTriangle, RotateCw, Download } from 'lucide-react';
+import { FileText, AlertTriangle, RotateCw, Download, Play } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import TesterResultEntry from '@/components/tester/TesterResultEntry';
 import type { PeriodicRunRow } from '@/components/clients/PeriodicScheduleDrawer';
+import {
+  AssignmentPanel,
+  getDeadlineDisplay,
+  LAB_CARD,
+  PeriodicBadge,
+  ProductInfoCard,
+  ProgressTracker,
+  StickyTestHeader,
+  TestIdentityGrid,
+} from '@/components/tester/TestExecutionWorkspace';
 
 const API = publicApiUrl('/api');
 
@@ -47,6 +58,7 @@ interface TestDetail {
 export default function TesterTestDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [test, setTest] = useState<TestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,57 +194,6 @@ export default function TesterTestDetailPage() {
     window.open(publicApiUrl(`/api/reports/download/${test.id}`), '_blank');
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-black/10 text-black border border-black/15';
-      case 'assigned':
-        return 'bg-green-100 text-black border border-green-800/30';
-      case 'in_progress':
-        return 'bg-green-600 text-white border border-green-800';
-      case 'submitted':
-        return 'bg-black text-white border border-black';
-      default:
-        return 'bg-black/10 text-black border border-black/15';
-    }
-  };
-
-  const getDeadlineInfo = (deadline: string | null, status: string) => {
-    if (!deadline) return null;
-
-    const deadlineDate = new Date(deadline);
-    const now = new Date();
-    const diffDays = Math.ceil(
-      (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    let color = 'text-black/70';
-    let urgency = '';
-
-    if (diffDays < 0 && status !== 'submitted') {
-      color = 'text-black font-semibold';
-      urgency = 'Overdue';
-    } else if (diffDays <= 3) {
-      color = 'text-green-800 font-medium';
-      urgency = `${diffDays} days remaining`;
-    } else if (diffDays <= 7) {
-      color = 'text-black/80';
-      urgency = `${diffDays} days remaining`;
-    } else {
-      urgency = `${diffDays} days remaining`;
-    }
-
-    return {
-      color,
-      urgency,
-      formattedDate: deadlineDate.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
-    };
-  };
-
   const formatAssignedDate = (assignedAt: string | null | undefined) => {
     if (!assignedAt) return 'Not on record';
     const d = new Date(assignedAt);
@@ -274,12 +235,13 @@ export default function TesterTestDetailPage() {
     );
   }
 
-  const deadlineInfo = getDeadlineInfo(test.test_deadline, test.status);
+  const deadlineInfo = getDeadlineDisplay(test.test_deadline, test.status);
   const resultData = test.result_data && typeof test.result_data === 'object' ? test.result_data : null;
   const isPeriodic = !!(test.is_periodic || test.periodic_schedule_id);
   const periodicDueStr =
     test.periodic_run_due_date || test.periodic_schedule_next_due || test.test_deadline;
-  const periodicDueInfo = periodicDueStr ? getDeadlineInfo(periodicDueStr, test.status) : null;
+  const periodicDueInfo = periodicDueStr ? getDeadlineDisplay(periodicDueStr, test.status) : null;
+  const technicianName = user?.name || 'Assigned technician';
   /** Next cycle = different article_tests row that is still open (not this submitted one). Never use ptr.run status alone — it can stay "scheduled" after submit. */
   const nextPendingPeriodicRun =
     isPeriodic && test.status === 'submitted'
@@ -293,396 +255,337 @@ export default function TesterTestDetailPage() {
           .sort((a, b) => a.run_number - b.run_number)[0] ?? null
       : null;
 
-  return (
-    <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-black/10 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <button
-                type="button"
-                onClick={() => router.push('/tester/dashboard')}
-                className="flex items-center space-x-2 text-black/70 hover:text-black"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back to My Tests</span>
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              {isPeriodic && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full border border-violet-400 bg-violet-100 text-violet-900">
-                  <RotateCw className="h-3.5 w-3.5" aria-hidden />
-                  PERIODIC
-                </span>
-              )}
-              <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(test.status)}`}>
-                {test.status.replace('_', ' ').toUpperCase()}
-              </span>
-            </div>
-          </div>
+  const sidebar = (
+    <aside className="space-y-3 lg:sticky lg:top-[120px] lg:self-start">
+      <AssignmentPanel
+        assignedAt={formatAssignedDate(test.assigned_at)}
+        deadline={test.test_deadline}
+        deadlineInfo={deadlineInfo}
+        technicianName={technicianName}
+      />
+      <ProductInfoCard
+        articleName={test.article_name}
+        articleNumber={test.article_number}
+        material={test.material_type}
+        color={test.color}
+        productCategory={test.category}
+      />
+      <ProgressTracker status={test.status} />
+      {test.admin_notes && (
+        <div className={`${LAB_CARD} p-4`}>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[#111111]/50">
+            Admin Notes
+          </h3>
+          <p className="mt-2 text-sm text-[#111111]">{test.admin_notes}</p>
         </div>
-      </header>
+      )}
+    </aside>
+  );
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          {isPeriodic && (
-            <div className="rounded-lg border border-violet-300 bg-violet-50 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-violet-950 mb-3 flex items-center gap-2">
-                <RotateCw className="h-5 w-5 text-violet-800" aria-hidden />
-                Periodic testing
-              </h2>
-              <p className="text-sm text-violet-900 mb-4">
-                This assignment is part of a repeating schedule. Complete and submit this run like any other test; the lab
-                will plan the next run from the schedule.
-              </p>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <dt className="text-violet-800/90">This run</dt>
-                  <dd className="font-medium text-violet-950">
-                    {typeof test.periodic_run_number === 'number' ? test.periodic_run_number : '—'}
-                    {test.periodic_total_occurrences != null
-                      ? ` of ${test.periodic_total_occurrences}`
-                      : ' (ongoing)'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-violet-800/90">Interval</dt>
-                  <dd className="font-medium text-violet-950">
-                    {test.periodic_frequency_value != null
-                      ? `Every ${test.periodic_frequency_value} day${test.periodic_frequency_value === 1 ? '' : 's'}`
-                      : '—'}
-                    {test.periodic_frequency_type ? ` (${test.periodic_frequency_type})` : ''}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-violet-800/90">Schedule status</dt>
-                  <dd className="capitalize font-medium text-violet-950">
-                    {test.periodic_schedule_status || '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-violet-800/90">Due for this run</dt>
-                  <dd className="font-medium text-violet-950">
-                    {periodicDueStr ? (
-                      <>
-                        {periodicDueInfo?.formattedDate}
-                        {periodicDueInfo?.urgency && (
-                          <span className={`ml-2 text-xs ${periodicDueInfo.color}`}>
-                            ({periodicDueInfo.urgency})
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </dd>
-                </div>
-              </dl>
-              {test.periodic_schedule_notes && (
-                <div className="mt-4 rounded border border-violet-200 bg-white/80 p-3 text-sm text-violet-950">
-                  <span className="font-medium text-violet-900">Notes from admin: </span>
-                  {test.periodic_schedule_notes}
-                </div>
-              )}
-            </div>
-          )}
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] pb-20">
+      <StickyTestHeader
+        testName={test.test_name}
+        testStandard={test.test_standard}
+        status={test.status}
+        deadlineInfo={deadlineInfo}
+        onBack={() => router.push('/tester/dashboard')}
+        trailing={isPeriodic ? <PeriodicBadge /> : null}
+      />
 
-          {isPeriodic && test.periodic_schedule_id && (
-            <div className="rounded-lg border border-violet-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-black mb-2 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-violet-800" aria-hidden />
-                All runs &amp; CoA reports (this schedule)
-              </h2>
-              <p className="text-sm text-black/70 mb-4">
-                Each completed cycle has its own assignment and report. When you finish a run, the next cycle appears on
-                your dashboard as a new assignment. Download past CoA documents here anytime.
+      <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+        {isPeriodic && (
+          <div className={`${LAB_CARD} mb-4 p-4`}>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#111111]">
+              <RotateCw className="h-4 w-4 text-[#2E7D32]" aria-hidden />
+              Periodic testing
+            </h2>
+            <p className="mb-3 text-xs text-[#111111]/65">
+              This assignment is part of a repeating schedule. Complete and submit this run like any
+              other test; the lab will plan the next run from the schedule.
+            </p>
+            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <div className="rounded-lg border border-[#E0E0E0] bg-[#FAFAFA] px-2 py-1.5">
+                <dt className="text-[10px] uppercase text-[#111111]/45">This run</dt>
+                <dd className="font-medium text-[#111111]">
+                  {typeof test.periodic_run_number === 'number' ? test.periodic_run_number : '—'}
+                  {test.periodic_total_occurrences != null
+                    ? ` of ${test.periodic_total_occurrences}`
+                    : ' (ongoing)'}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-[#E0E0E0] bg-[#FAFAFA] px-2 py-1.5">
+                <dt className="text-[10px] uppercase text-[#111111]/45">Interval</dt>
+                <dd className="font-medium text-[#111111]">
+                  {test.periodic_frequency_value != null
+                    ? `Every ${test.periodic_frequency_value} day${test.periodic_frequency_value === 1 ? '' : 's'}`
+                    : '—'}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-[#E0E0E0] bg-[#FAFAFA] px-2 py-1.5">
+                <dt className="text-[10px] uppercase text-[#111111]/45">Schedule</dt>
+                <dd className="capitalize font-medium text-[#111111]">
+                  {test.periodic_schedule_status || '—'}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-[#E0E0E0] bg-[#FAFAFA] px-2 py-1.5">
+                <dt className="text-[10px] uppercase text-[#111111]/45">Due this run</dt>
+                <dd className="font-medium text-[#111111]">
+                  {periodicDueInfo?.formattedDate ?? '—'}
+                </dd>
+              </div>
+            </dl>
+            {test.periodic_schedule_notes && (
+              <p className="mt-3 rounded-lg border border-[#C8E6C9] bg-[#E8F5E9] px-3 py-2 text-xs text-[#111111]">
+                <span className="font-semibold text-[#1B5E20]">Admin: </span>
+                {test.periodic_schedule_notes}
               </p>
-              {periodicRunsLoading ? (
-                <p className="text-sm text-black/60">Loading run history…</p>
-              ) : periodicRuns.length === 0 ? (
-                <p className="text-sm text-black/60">No run rows found yet.</p>
-              ) : (
-                <div className="overflow-x-auto rounded border border-black/10">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-black/5 text-xs text-black/70">
-                      <tr>
-                        <th className="px-3 py-2">Run</th>
-                        <th className="px-3 py-2">Due</th>
-                        <th className="px-3 py-2">Run status</th>
-                        <th className="px-3 py-2">Result</th>
-                        <th className="px-3 py-2">CoA report</th>
+            )}
+          </div>
+        )}
+
+        {isPeriodic && test.periodic_schedule_id && (
+          <div className={`${LAB_CARD} mb-4 p-4`}>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#111111]">
+              <FileText className="h-4 w-4 text-[#2E7D32]" aria-hidden />
+              All runs &amp; CoA reports
+            </h2>
+            {periodicRunsLoading ? (
+              <p className="text-xs text-[#111111]/60">Loading run history…</p>
+            ) : periodicRuns.length === 0 ? (
+              <p className="text-xs text-[#111111]/60">No run rows found yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-[#E0E0E0]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#E8F5E9] text-xs text-[#1B5E20]">
+                    <tr>
+                      <th className="px-3 py-2">Run</th>
+                      <th className="px-3 py-2">Due</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Result</th>
+                      <th className="px-3 py-2">CoA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E0E0E0]">
+                    {periodicRuns.map((r) => (
+                      <tr
+                        key={r.id}
+                        className={r.article_test_id === test.id ? 'bg-[#E8F5E9]/60' : ''}
+                      >
+                        <td className="px-3 py-2 font-medium text-[#111111]">
+                          {r.run_number}
+                          {r.article_test_id === test.id ? (
+                            <span className="ml-2 text-xs font-normal text-[#2E7D32]">
+                              (this page)
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-[#111111]/80">
+                          {String(r.due_date).slice(0, 10)}
+                        </td>
+                        <td className="px-3 py-2 capitalize text-[#111111]/80">{r.status}</td>
+                        <td className="px-3 py-2">
+                          {r.result ? (
+                            <span
+                              className={
+                                r.result === 'PASS'
+                                  ? 'font-medium text-[#2E7D32]'
+                                  : 'font-medium text-[#111111]'
+                              }
+                            >
+                              {r.result}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {r.article_report_url ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const tid = getCurrentTesterId();
+                                const q = tid ? `?tester_id=${encodeURIComponent(tid)}` : '';
+                                window.open(
+                                  `${API}/tester/my-tests/${r.article_test_id}/download-report${q}`,
+                                  '_blank'
+                                );
+                              }}
+                              className="inline-flex items-center gap-1 text-[#2E7D32] hover:underline"
+                            >
+                              <Download className="h-4 w-4" />
+                              {r.article_report_number || 'Download'}
+                            </button>
+                          ) : (
+                            <span className="text-[#111111]/40">—</span>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/10">
-                      {periodicRuns.map((r) => (
-                        <tr key={r.id} className={r.article_test_id === test.id ? 'bg-violet-50/80' : ''}>
-                          <td className="px-3 py-2 font-medium text-black">
-                            {r.run_number}
-                            {r.article_test_id === test.id ? (
-                              <span className="ml-2 text-xs font-normal text-violet-800">(this page)</span>
-                            ) : null}
-                          </td>
-                          <td className="px-3 py-2 text-black/80">{String(r.due_date).slice(0, 10)}</td>
-                          <td className="px-3 py-2 capitalize text-black/80">{r.status}</td>
-                          <td className="px-3 py-2">
-                            {r.result ? (
-                              <span className={r.result === 'PASS' ? 'text-green-700 font-medium' : 'text-red-600 font-medium'}>
-                                {r.result}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            {r.article_report_url ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const tid = getCurrentTesterId();
-                                  const q = tid ? `?tester_id=${encodeURIComponent(tid)}` : '';
-                                  window.open(`${API}/tester/my-tests/${r.article_test_id}/download-report${q}`, '_blank');
-                                }}
-                                className="inline-flex items-center gap-1 text-violet-800 hover:underline"
-                              >
-                                <Download className="h-4 w-4" />
-                                {r.article_report_number || 'Download'}
-                              </button>
-                            ) : (
-                              <span className="text-black/40">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="bg-white rounded-lg border border-black/10 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-black mb-4">Test Identity</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Library / mapping ID</label>
-                <div className="text-sm font-mono bg-green-50/50 px-3 py-2 rounded border border-black/10 text-black">
-                  {test.inhouse_test_id || '—'}
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Category</label>
-                <div className="text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                    test.category === 'Finished Good' ? 'bg-green-100 text-black border-green-800/30' : 'bg-white text-black border-black/15'
-                  }`}>
-                    {test.category}
-                  </span>
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-black/70 mb-1">Test Name</label>
-                <div className="text-lg font-semibold text-black">{test.test_name}</div>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-black/70 mb-1">Standard Method</label>
-                <div className="text-sm font-mono bg-green-50/50 px-3 py-2 rounded border border-black/10 text-black">
-                  {test.test_standard}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
+        )}
 
-          <div className="bg-white rounded-lg border border-black/10 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-black mb-4">Assignment</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Assigned on</label>
-                <div className="text-sm text-black">{formatAssignedDate(test.assigned_at)}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Deadline</label>
-                <div className="text-sm">
-                  {test.test_deadline ? (
-                    <div>
-                      <div className="font-medium text-black">
-                        {deadlineInfo?.formattedDate}
-                      </div>
-                      <div className={`text-xs ${deadlineInfo?.color}`}>
-                        {deadlineInfo?.urgency}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-black/60">No deadline set</span>
-                  )}
-                </div>
-              </div>
-              {test.admin_notes && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-black/70 mb-1">Notes from admin</label>
-                  <div className="text-sm text-black bg-green-50/50 p-3 rounded border border-black/10">
-                    {test.admin_notes}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-3">
+            {test.status !== 'in_progress' && (
+              <TestIdentityGrid
+                libraryId={test.inhouse_test_id || '—'}
+                category={test.category}
+                testName={test.test_name}
+                testStandard={test.test_standard}
+                clientRequirement={test.client_requirement}
+              />
+            )}
 
-          <div className="bg-white rounded-lg border border-black/10 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-black mb-4">Product Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Product Name</label>
-                <div className="text-sm font-medium text-black">{test.article_name}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Article Number</label>
-                <div className="text-sm font-mono bg-green-50/50 px-3 py-2 rounded border border-black/10 text-black">
-                  {test.article_number}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Material Type</label>
-                <div className="text-sm text-black">{test.material_type}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black/70 mb-1">Color</label>
-                <div className="text-sm text-black">{test.color}</div>
-              </div>
-            </div>
-          </div>
-
-          {test.status !== 'in_progress' && (
-            <div className="bg-white rounded-lg border border-black/10 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-black mb-4">Client Requirement</h2>
-              <div className="bg-green-50/50 p-4 rounded border border-green-800/20">
-                <div className="text-sm text-black leading-relaxed whitespace-pre-wrap">
-                  {test.client_requirement}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {test.status === 'submitted' && (
-            <div className="rounded-lg border border-green-800/30 bg-green-50 p-6">
-              <h2 className="text-lg font-semibold text-black mb-2">Submitted result</h2>
-              <p className="text-2xl font-bold text-green-800">{test.result || '—'}</p>
-              {test.submitted_at && (
-                <p className="mt-2 text-sm text-black/80">
-                  Submitted {new Date(test.submitted_at).toLocaleString()}
-                </p>
-              )}
-              {resultData?.calculated_results != null && (
-                <details className="mt-4 text-sm text-black">
-                  <summary className="cursor-pointer font-medium">Calculation details</summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-white p-3 text-xs text-black border border-black/10">
-                    {JSON.stringify(resultData.calculated_results, null, 2)}
-                  </pre>
-                </details>
-              )}
-              {isPeriodic && periodicRunsLoading ? (
-                <p className="mt-4 text-sm text-black/70">Checking for your next periodic assignment…</p>
-              ) : nextPendingPeriodicRun ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/tester/tests/${nextPendingPeriodicRun.article_test_id}`)}
-                    className="inline-flex items-center gap-2 rounded-md border border-violet-500 bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
-                  >
-                    <RotateCw className="h-4 w-4" />
-                    Go to next periodic run (Run {nextPendingPeriodicRun.run_number})
-                  </button>
-                </div>
-              ) : isPeriodic ? (
-                <div className="mt-4 space-y-2 rounded border border-violet-200 bg-white/90 p-3 text-sm text-violet-900">
-                  <p>
-                    The next cycle is not listed yet (or it is only visible on your list). Open <strong>My Tests</strong>{' '}
-                    and look for the same test name with the next run number.
+            {test.status === 'submitted' && (
+              <div className={`${LAB_CARD} p-4`}>
+                <h2 className="text-sm font-semibold text-[#111111]">Submitted result</h2>
+                <p className="mt-1 text-3xl font-bold text-[#2E7D32]">{test.result || '—'}</p>
+                {test.submitted_at && (
+                  <p className="mt-1 text-xs text-[#111111]/65">
+                    Submitted {new Date(test.submitted_at).toLocaleString()}
                   </p>
+                )}
+                {resultData?.calculated_results != null && (
+                  <details className="mt-3 text-sm text-[#111111]">
+                    <summary className="cursor-pointer font-medium">Calculation details</summary>
+                    <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-[#E0E0E0] bg-[#FAFAFA] p-3 text-xs">
+                      {JSON.stringify(resultData.calculated_results, null, 2)}
+                    </pre>
+                  </details>
+                )}
+                {isPeriodic && periodicRunsLoading ? (
+                  <p className="mt-3 text-xs text-[#111111]/65">
+                    Checking for your next periodic assignment…
+                  </p>
+                ) : nextPendingPeriodicRun ? (
                   <button
                     type="button"
-                    onClick={handleCreateNextPeriodicCycle}
-                    disabled={creatingNextCycle}
-                    className="inline-flex items-center gap-2 rounded-md border border-violet-500 bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+                    onClick={() =>
+                      router.push(`/tester/tests/${nextPendingPeriodicRun.article_test_id}`)
+                    }
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#2E7D32] px-4 py-2 text-sm font-medium text-white hover:bg-[#1B5E20]"
                   >
                     <RotateCw className="h-4 w-4" />
-                    {creatingNextCycle ? 'Creating next cycle…' : 'Create next cycle now'}
+                    Next periodic run (Run {nextPendingPeriodicRun.run_number})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/tester/dashboard')}
-                    className="inline-flex items-center gap-2 rounded-md border border-violet-400 bg-white px-3 py-2 text-sm font-medium text-violet-900 hover:bg-violet-50"
-                  >
-                    Open My Tests
-                  </button>
-                </div>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleGenerateReport}
-                  className="inline-flex items-center gap-2 rounded-md border border-green-700 bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-                >
-                  <FileText className="h-4 w-4" />
-                  Generate Report
-                </button>
-                {test.report_url && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadReport}
-                    className="inline-flex items-center gap-2 rounded-md border border-black/20 bg-white px-4 py-2 text-sm font-medium text-black hover:bg-black/5"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download Report
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {test.status === 'in_progress' && (
-            <TesterResultEntry
-              articleTestId={test.id}
-              inhouseTestId={test.inhouse_test_id}
-              testStandard={test.test_standard}
-              clientRequirement={test.client_requirement}
-              onSubmitted={(payload) => {
-                if (payload?.periodicNextTestId) {
-                  router.push(`/tester/tests/${payload.periodicNextTestId}`);
-                  return;
-                }
-                fetchTestDetail(test.id);
-              }}
-            />
-          )}
-
-          <div className="bg-white rounded-lg border border-black/10 p-6 shadow-sm">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="text-sm text-black/70">
-                Test Status:{' '}
-                <span className="font-medium text-black">{test.status.replace('_', ' ')}</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                {(test.status === 'pending' || test.status === 'assigned') && (
-                  <button
-                    type="button"
-                    onClick={handleStartTest}
-                    className="px-6 py-2 bg-green-700 text-white font-medium rounded-md hover:bg-green-800 flex items-center space-x-2"
-                  >
-                    <Clock className="w-4 h-4" />
-                    <span>Start test</span>
-                  </button>
-                )}
-                {test.status === 'submitted' && (
-                  <div className="flex items-center space-x-2 text-green-800">
-                    <FileText className="w-4 h-4" />
-                    <span className="font-medium">Completed</span>
+                ) : isPeriodic ? (
+                  <div className="mt-3 space-y-2 rounded-lg border border-[#C8E6C9] bg-[#E8F5E9] p-3 text-xs text-[#111111]">
+                    <p>
+                      The next cycle may appear on <strong>My Tests</strong> with the next run
+                      number.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCreateNextPeriodicCycle}
+                        disabled={creatingNextCycle}
+                        className="inline-flex items-center gap-2 rounded-lg bg-[#2E7D32] px-3 py-2 text-sm font-medium text-white hover:bg-[#1B5E20] disabled:opacity-60"
+                      >
+                        <RotateCw className="h-4 w-4" />
+                        {creatingNextCycle ? 'Creating…' : 'Create next cycle'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/tester/dashboard')}
+                        className="rounded-lg border border-[#C8E6C9] bg-white px-3 py-2 text-sm font-medium text-[#111111] hover:bg-[#E8F5E9]"
+                      >
+                        My Tests
+                      </button>
+                    </div>
                   </div>
-                )}
+                ) : null}
               </div>
-            </div>
+            )}
+
+            {test.status === 'in_progress' && (
+              <>
+                <TestIdentityGrid
+                  libraryId={test.inhouse_test_id || '—'}
+                  category={test.category}
+                  testName={test.test_name}
+                  testStandard={test.test_standard}
+                  clientRequirement={test.client_requirement}
+                />
+                <TesterResultEntry
+                  articleTestId={test.id}
+                  inhouseTestId={test.inhouse_test_id}
+                  testStandard={test.test_standard}
+                  clientRequirement={test.client_requirement}
+                  hideClientRequirement
+                  onSubmitted={(payload) => {
+                    if (payload?.periodicNextTestId) {
+                      router.push(`/tester/tests/${payload.periodicNextTestId}`);
+                      return;
+                    }
+                    fetchTestDetail(test.id);
+                  }}
+                />
+              </>
+            )}
+
+            {(test.status === 'pending' || test.status === 'assigned') && (
+              <div className={`${LAB_CARD} p-4`}>
+                <p className="text-sm text-[#111111]/70">
+                  Start the test to open the laboratory worksheet, enter measurements, upload
+                  evidence, and submit results.
+                </p>
+              </div>
+            )}
           </div>
+
+          {sidebar}
         </div>
       </main>
+
+      {test.status !== 'in_progress' && (
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#E0E0E0] bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-end gap-2 px-4 py-3 sm:px-6">
+          {(test.status === 'pending' || test.status === 'assigned') && (
+            <button
+              type="button"
+              onClick={handleStartTest}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1B5E20] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#2E7D32]"
+            >
+              <Play className="h-4 w-4" aria-hidden />
+              Start Test
+            </button>
+          )}
+          {test.status === 'submitted' && (
+            <>
+              <button
+                type="button"
+                onClick={handleGenerateReport}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#2E7D32] bg-white px-4 py-2 text-sm font-medium text-[#2E7D32] hover:bg-[#E8F5E9]"
+              >
+                <FileText className="h-4 w-4" />
+                Generate Preview
+              </button>
+              {test.report_url && (
+                <button
+                  type="button"
+                  onClick={handleDownloadReport}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-4 py-2 text-sm font-medium text-[#111111] hover:bg-[#FAFAFA]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Report
+                </button>
+              )}
+            </>
+          )}
+          {test.status === 'submitted' && (
+            <span className="mr-auto flex items-center gap-2 text-sm font-medium text-[#2E7D32]">
+              <FileText className="h-4 w-4" aria-hidden />
+              Completed
+            </span>
+          )}
+        </div>
+      </div>
+      )}
     </div>
   );
 }

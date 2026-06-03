@@ -8,6 +8,7 @@ interface MetricCardProps {
   trend?: number;
   comparison?: string;
   accent?: 'green' | 'blue';
+  onClick?: () => void;
 }
 
 export default function MetricCard({
@@ -18,13 +19,18 @@ export default function MetricCard({
   trend,
   comparison,
   accent = 'green',
+  onClick,
 }: MetricCardProps) {
   const isPositive = trend !== undefined && trend >= 0;
   const iconBg = accent === 'blue' ? 'bg-blue-100' : 'bg-green-100';
   const iconColor = accent === 'blue' ? 'text-blue-700' : 'text-green-700';
 
-  return (
-    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+  const className = `w-full rounded-xl border border-black/10 bg-white p-4 text-left shadow-sm transition-shadow ${
+    onClick ? 'cursor-pointer hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700' : 'hover:shadow-md'
+  }`;
+
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium uppercase tracking-wide text-black/60">{title}</p>
@@ -49,6 +55,16 @@ export default function MetricCard({
           <Icon className={`h-5 w-5 ${iconColor}`} />
         </div>
       </div>
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }

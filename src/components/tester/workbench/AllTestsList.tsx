@@ -4,6 +4,7 @@ import { ExternalLink, Filter, Play, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { TestsStatusFilter } from '@/lib/workbenchSections';
 import type { AssignedTest } from '@/types/testerWorkbench';
+import TesterReportActions from '@/components/tester/TesterReportActions';
 import {
   derivePriority,
   effectiveDueDate,
@@ -25,6 +26,7 @@ interface AllTestsListProps {
   onSelect: (test: AssignedTest) => void;
   onStartTest: (testId: string) => void;
   onOpenDetail: (testId: string) => void;
+  onReportGenerated?: () => void;
 }
 
 function statusBadge(status: AssignedTest['status']): string {
@@ -50,6 +52,7 @@ export default function AllTestsList({
   onSelect,
   onStartTest,
   onOpenDetail,
+  onReportGenerated,
 }: AllTestsListProps) {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('deadline');
@@ -181,6 +184,7 @@ export default function AllTestsList({
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Due</th>
                   <th className="px-4 py-3 font-medium">Priority</th>
+                  <th className="px-4 py-3 font-medium">Report</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -229,6 +233,20 @@ export default function AllTestsList({
                         >
                           {priorityLabel(priority)}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {test.status === 'submitted' ? (
+                          <TesterReportActions
+                            testId={test.id}
+                            status={test.status}
+                            reportUrl={test.report_url}
+                            reportGeneratedAt={test.report_generated_at}
+                            variant="compact"
+                            onReportGenerated={onReportGenerated}
+                          />
+                        ) : (
+                          <span className="text-xs text-black/35">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">

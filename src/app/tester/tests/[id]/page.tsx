@@ -6,6 +6,8 @@ import { FileText, AlertTriangle, RotateCw, Download, Play } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TesterResultEntry from '@/components/tester/TesterResultEntry';
+import TesterReportActions from '@/components/tester/TesterReportActions';
+import { getCurrentTesterId, getTesterReportDownloadUrl } from '@/lib/testerReportApi';
 import type { PeriodicRunRow } from '@/components/clients/PeriodicScheduleDrawer';
 import {
   AssignmentPanel,
@@ -40,6 +42,7 @@ interface TestDetail {
   result_data: Record<string, unknown> | null;
   submitted_at: string | null;
   report_url?: string | null;
+  report_number?: string | null;
   report_generated_at?: string | null;
   template_key?: string | null;
   template_name?: string | null;
@@ -66,22 +69,12 @@ export default function TesterTestDetailPage() {
   const [periodicRunsLoading, setPeriodicRunsLoading] = useState(false);
   const [creatingNextCycle, setCreatingNextCycle] = useState(false);
 
-  const getCurrentTesterId = (): string | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (!storedUser) return null;
-      const parsedUser = JSON.parse(storedUser);
-      return parsedUser?.id ? String(parsedUser.id) : null;
-    } catch {
-      return null;
-    }
-  };
+  const getCurrentTesterIdLocal = (): string | null => getCurrentTesterId();
 
   const fetchTestDetail = useCallback(async (testId: string) => {
     setLoading(true);
     try {
-      const testerId = getCurrentTesterId();
+      const testerId = getCurrentTesterIdLocal();
       const response = await fetch(publicApiUrl(`/api/tester/my-tests/${testId}`), {
         headers: testerId ? { 'x-user-id': testerId } : {},
       });
@@ -111,7 +104,7 @@ export default function TesterTestDetailPage() {
       setPeriodicRuns([]);
       return;
     }
-    const tid = getCurrentTesterId();
+    const tid = getCurrentTesterIdLocal();
     setPeriodicRunsLoading(true);
     fetch(`${API}/tester/periodic-schedules/${test.periodic_schedule_id}/runs`, {
       headers: tid ? { 'x-user-id': tid } : {},
@@ -126,7 +119,7 @@ export default function TesterTestDetailPage() {
     if (!test) return;
 
     try {
-      const testerId = getCurrentTesterId();
+      const testerId = getCurrentTesterIdLocal();
       const response = await fetch(publicApiUrl(`/api/tester/my-tests/${test.id}/start`), {
         method: 'POST',
         headers: testerId ? { 'x-user-id': testerId } : {},
@@ -146,7 +139,7 @@ export default function TesterTestDetailPage() {
     if (!test) return;
     try {
       setCreatingNextCycle(true);
-      const tid = getCurrentTesterId();
+      const tid = getCurrentTesterIdLocal();
       const res = await fetch(`${API}/tester/my-tests/${test.id}/advance-periodic`, {
         method: 'POST',
         headers: tid ? { 'x-user-id': tid } : {},
@@ -171,27 +164,6 @@ export default function TesterTestDetailPage() {
     } finally {
       setCreatingNextCycle(false);
     }
-  };
-
-  const handleGenerateReport = async () => {
-    if (!test) return;
-    try {
-      const response = await fetch(publicApiUrl(`/api/reports/generate/${test.id}`), { method: 'POST' });
-      const data = await response.json();
-      if (!response.ok) {
-        alert(data.error || 'Failed to generate report');
-        return;
-      }
-      await fetchTestDetail(test.id);
-      alert('Report generated successfully');
-    } catch {
-      alert('Failed to generate report');
-    }
-  };
-
-  const handleDownloadReport = () => {
-    if (!test?.id) return;
-    window.open(publicApiUrl(`/api/reports/download/${test.id}`), '_blank');
   };
 
   const formatAssignedDate = (assignedAt: string | null | undefined) => {
@@ -404,10 +376,8 @@ export default function TesterTestDetailPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                const tid = getCurrentTesterId();
-                                const q = tid ? `?tester_id=${encodeURIComponent(tid)}` : '';
                                 window.open(
-                                  `${API}/tester/my-tests/${r.article_test_id}/download-report${q}`,
+                                  getTesterReportDownloadUrl(r.article_test_id),
                                   '_blank'
                                 );
                               }}
@@ -450,6 +420,24 @@ export default function TesterTestDetailPage() {
                     Submitted {new Date(test.submitted_at).toLocaleString()}
                   </p>
                 )}
+                <div className="mt-4 border-t border-[#E0E0E0] pt-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#111111]/50">
+                    Test report
+                  </h3>
+                  <TesterReportActions
+                    testId={test.id}
+                    status={test.status}
+                    reportUrl={test.report_url}
+                    reportGeneratedAt={test.report_generated_at}
+                    onReportGenerated={() => fetchTestDetail(test.id)}
+                  />
+                  {test.report_generated_at && (
+                    <p className="mt-2 text-xs text-[#111111]/55">
+                      Last generated {new Date(test.report_generated_at).toLocaleString()}
+                      {test.report_number ? ` · ${test.report_number}` : ''}
+                    </p>
+                  )}
+                </div>
                 {resultData?.calculated_results != null && (
                   <details className="mt-3 text-sm text-[#111111]">
                     <summary className="cursor-pointer font-medium">Calculation details</summary>
@@ -556,26 +544,13 @@ export default function TesterTestDetailPage() {
             </button>
           )}
           {test.status === 'submitted' && (
-            <>
-              <button
-                type="button"
-                onClick={handleGenerateReport}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#2E7D32] bg-white px-4 py-2 text-sm font-medium text-[#2E7D32] hover:bg-[#E8F5E9]"
-              >
-                <FileText className="h-4 w-4" />
-                Generate Preview
-              </button>
-              {test.report_url && (
-                <button
-                  type="button"
-                  onClick={handleDownloadReport}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-4 py-2 text-sm font-medium text-[#111111] hover:bg-[#FAFAFA]"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Report
-                </button>
-              )}
-            </>
+            <TesterReportActions
+              testId={test.id}
+              status={test.status}
+              reportUrl={test.report_url}
+              reportGeneratedAt={test.report_generated_at}
+              onReportGenerated={() => fetchTestDetail(test.id)}
+            />
           )}
           {test.status === 'submitted' && (
             <span className="mr-auto flex items-center gap-2 text-sm font-medium text-[#2E7D32]">

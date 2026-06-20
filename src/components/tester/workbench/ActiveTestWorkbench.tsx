@@ -7,9 +7,9 @@ import {
   FileText,
   Pause,
   Play,
-  RotateCw,
 } from 'lucide-react';
 import type { AssignedTest, WorkflowStep } from '@/types/testerWorkbench';
+import TesterReportActions from '@/components/tester/TesterReportActions';
 import {
   derivePriority,
   effectiveDueDate,
@@ -30,7 +30,7 @@ interface ActiveTestWorkbenchProps {
   onPause: () => void;
   onResume: () => void;
   onOpenTestDetail?: () => void;
-  onGenerateReport: () => void;
+  onReportGenerated?: () => void;
 }
 
 export default function ActiveTestWorkbench({
@@ -43,7 +43,7 @@ export default function ActiveTestWorkbench({
   onPause,
   onResume,
   onOpenTestDetail,
-  onGenerateReport,
+  onReportGenerated,
 }: ActiveTestWorkbenchProps) {
   if (!test) {
     return (
@@ -204,7 +204,13 @@ export default function ActiveTestWorkbench({
             />
           )}
           {test.status === 'submitted' && (
-            <ActionButton icon={RotateCw} label="Generate Draft Report" onClick={onGenerateReport} />
+            <TesterReportActions
+              testId={test.id}
+              status={test.status}
+              reportUrl={test.report_url}
+              reportGeneratedAt={test.report_generated_at}
+              onReportGenerated={onReportGenerated}
+            />
           )}
         </div>
       </div>

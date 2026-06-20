@@ -3,8 +3,10 @@
 import { publicApiUrl } from '@/lib/apiBase';
 import { findDefaultTester, resolveTesterIdForPayload } from '@/lib/defaultTester';
 import React, { useEffect, useState } from 'react';
-import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Download, FlaskConical } from 'lucide-react';
 import ExtractionReviewTable from './ExtractionReviewTable';
+import TestLibraryPicker, { buildTestsFromLibrarySelection } from './TestLibraryPicker';
+import { Test } from '@/types/test';
 
 interface NewArticleDrawerProps {
   isOpen: boolean;
@@ -54,6 +56,7 @@ interface ExtractedData {
 }
 
 type ToastType = 'success' | 'error';
+type SpecMethod = 'pdf' | 'library';
 
 export default function NewArticleDrawer({ isOpen, onClose, clientId = null, clientName = null, onArticleCreated }: NewArticleDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -64,6 +67,10 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
   const [description, setDescription] = useState('');
   const [document, setDocument] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [specMethod, setSpecMethod] = useState<SpecMethod>('pdf');
+  const [specSource, setSpecSource] = useState<'pdf' | 'library' | null>(null);
+  const [selectedLibraryTestIds, setSelectedLibraryTestIds] = useState<string[]>([]);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -109,8 +116,8 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
   const steps = [
     { number: 1, title: 'Article Information', icon: FileText },
-    { number: 2, title: 'Upload Specification', icon: Upload },
-    { number: 3, title: 'Review Extracted Tests', icon: CheckCircle },
+    { number: 2, title: 'Add Test Specification', icon: Upload },
+    { number: 3, title: 'Review Tests', icon: CheckCircle },
     { number: 4, title: 'Confirm & Create Article', icon: CheckCircle }
   ];
 
@@ -176,6 +183,7 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
 
       if (extractResult.success) {
         setExtractedData(extractResult.data);
+        setSpecSource('pdf');
         
         // Auto-populate article info from extracted data if available
         if (extractResult.data.component) {
@@ -201,6 +209,55 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
       setExtractionError(error instanceof Error ? error.message : 'Extraction failed');
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  const handleLibraryContinue = async () => {
+    if (selectedLibraryTestIds.length === 0) {
+      setError('Select at least one test from the library');
+      showToast('Select at least one test from the library', 'error');
+      return;
+    }
+
+    setIsLoadingLibrary(true);
+    setError('');
+
+    try {
+      const response = await fetch(publicApiUrl('/api/tests'), {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load test library');
+      }
+
+      const data = await response.json();
+      const allTests: Test[] = data.tests || [];
+      const testRows = buildTestsFromLibrarySelection(allTests, selectedLibraryTestIds);
+
+      setExtractedData({
+        component: null,
+        tests: testRows,
+        extraction_meta: {
+          total_tests_found: testRows.length,
+          inhouse_count: testRows.length,
+          outsource_count: 0,
+          raw_material_count: testRows.filter((t) => t.category === 'Raw Material').length,
+          wip_count: testRows.filter((t) => t.category === 'Work In Progress').length,
+          finished_good_count: testRows.filter((t) => t.category === 'Finished Good').length,
+        },
+      });
+      setSpecSource('library');
+      setCurrentStep(3);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load test library';
+      setError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsLoadingLibrary(false);
     }
   };
 
@@ -436,93 +493,151 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-slate-900 mb-4">Upload Test Specification</h3>
+              <h3 className="text-lg font-medium text-slate-900 mb-4">Add Test Specification</h3>
               <p className="text-sm text-slate-600 mb-6">
-                Upload the test specification document to automatically extract test requirements for this article.
+                Upload a PDF specification to auto-extract tests, or select tests from the lab test library and enter client requirements manually.
               </p>
             </div>
 
-            {/* Document Upload */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-4">
-                Test Specification Document (Optional)
-              </label>
-              
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-                <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                <p className="text-lg font-medium text-slate-700">
-                  Drop your PDF file here, or{' '}
-                  <label className="text-green-600 hover:text-green-700 cursor-pointer">
-                    browse
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </p>
-                <p className="text-sm text-slate-500">PDF files only, up to 10MB</p>
-              </div>
+            {/* Method selector */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setSpecMethod('pdf');
+                  setSelectedLibraryTestIds([]);
+                  setExtractionError('');
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  specMethod === 'pdf'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Upload className="w-4 h-4" />
+                Upload PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSpecMethod('library');
+                  setDocument(null);
+                  setExtractionError('');
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-l border-slate-200 ${
+                  specMethod === 'library'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                Select from Test Library
+              </button>
             </div>
 
-            {document && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-green-800">{document.name}</p>
-                    <p className="text-sm text-green-600">
-                      {(document.size / 1024 / 1024).toFixed(2)} MB
+            {specMethod === 'pdf' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-4">
+                    Test Specification Document (Optional)
+                  </label>
+                  
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
+                    <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-lg font-medium text-slate-700">
+                      Drop your PDF file here, or{' '}
+                      <label className="text-green-600 hover:text-green-700 cursor-pointer">
+                        browse
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
                     </p>
+                    <p className="text-sm text-slate-500">PDF files only, up to 10MB</p>
                   </div>
-                  <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
-                <button
-                  onClick={handleExtractData}
-                  disabled={isExtracting}
-                  className="mt-4 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isExtracting ? 'Extracting test requirements...' : 'Extract Data & Continue'}
-                </button>
-              </div>
-            )}
 
-            {isExtracting && (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
-                <p className="text-slate-600">Extracting test requirements...</p>
-              </div>
-            )}
+                {document && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-green-800">{document.name}</p>
+                        <p className="text-sm text-green-600">
+                          {(document.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    </div>
+                    <button
+                      onClick={handleExtractData}
+                      disabled={isExtracting}
+                      className="mt-4 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isExtracting ? 'Extracting test requirements...' : 'Extract Data & Continue'}
+                    </button>
+                  </div>
+                )}
 
-            {extractionError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center mb-2">
-                  <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
-                  <span className="text-sm font-medium text-red-800">Extraction Failed</span>
-                </div>
-                <p className="text-sm text-red-700">{extractionError}</p>
-                <button
-                  onClick={handleExtractData}
-                  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-                >
-                  Retry Extraction
-                </button>
-              </div>
+                {isExtracting && (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+                    <p className="text-slate-600">Extracting test requirements...</p>
+                  </div>
+                )}
+
+                {extractionError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
+                      <span className="text-sm font-medium text-red-800">Extraction Failed</span>
+                    </div>
+                    <p className="text-sm text-red-700">{extractionError}</p>
+                    <button
+                      onClick={handleExtractData}
+                      className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                    >
+                      Retry Extraction
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <TestLibraryPicker
+                  selectedTestIds={selectedLibraryTestIds}
+                  onSelectionChange={setSelectedLibraryTestIds}
+                />
+                {selectedLibraryTestIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleLibraryContinue}
+                    disabled={isLoadingLibrary}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingLibrary
+                      ? 'Loading...'
+                      : `Continue with ${selectedLibraryTestIds.length} Selected Test${selectedLibraryTestIds.length !== 1 ? 's' : ''}`}
+                  </button>
+                )}
+              </>
             )}
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center mb-2">
                 <FileText className="w-4 h-4 text-blue-600 mr-2" />
-                <span className="text-sm font-medium text-blue-800">Skip Document Upload</span>
+                <span className="text-sm font-medium text-blue-800">Skip Test Specification</span>
               </div>
               <p className="text-sm text-blue-700 mb-3">
-                You can skip document upload and manually add tests later, or continue without any tests for now.
+                You can skip this step and create the article without tests, or add tests later from the article details page.
               </p>
               <button
-                onClick={() => setCurrentStep(4)} // Skip to final step
+                onClick={() => setCurrentStep(4)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
-                Continue Without Document
+                Continue Without Tests
               </button>
             </div>
           </div>
@@ -532,22 +647,27 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-slate-900 mb-4">Review Extracted Tests</h3>
+              <h3 className="text-lg font-medium text-slate-900 mb-4">
+                {specSource === 'library' ? 'Enter Client Requirements' : 'Review Extracted Tests'}
+              </h3>
               <p className="text-sm text-slate-600 mb-6">
-                Review and edit the test requirements extracted from your specification document.
+                {specSource === 'library'
+                  ? 'Fill in the client requirement for each test selected from the library. You can adjust category, execution type, and assignments before continuing.'
+                  : 'Review and edit the test requirements extracted from your specification document.'}
               </p>
             </div>
 
             {extractedData && (
               <ExtractionReviewTable
                 extractedData={extractedData}
+                source={specSource === 'library' ? 'library' : 'pdf'}
                 onConfirm={(tests, componentInfo) => {
                   setExtractedData(prev => prev ? {
                     ...prev,
                     tests,
                     component: componentInfo
                   } : null);
-                  handleNext(); // Move to step 4
+                  handleNext();
                 }}
                 onBack={handleBack}
               />
@@ -771,10 +891,18 @@ export default function NewArticleDrawer({ isOpen, onClose, clientId = null, cli
               >
                 {isCreating ? 'Creating Article...' : 'Create Article'}
               </button>
+            ) : currentStep === 3 ? null : currentStep === 2 && specMethod === 'library' && selectedLibraryTestIds.length > 0 ? (
+              <button
+                onClick={handleLibraryContinue}
+                disabled={isLoadingLibrary}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingLibrary ? 'Loading...' : 'Continue'}
+              </button>
             ) : (
               <button
                 onClick={handleNext}
-                disabled={currentStep === 2 && !extractedData && !!document}
+                disabled={currentStep === 2 && specMethod === 'pdf' && !extractedData && !!document}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue

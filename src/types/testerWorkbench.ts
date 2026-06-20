@@ -33,6 +33,7 @@ export interface AssignedTest {
   client_name?: string | null;
   client_code?: string | null;
   report_url?: string | null;
+  report_number?: string | null;
   report_generated_at?: string | null;
   template_key?: string | null;
   template_name?: string | null;

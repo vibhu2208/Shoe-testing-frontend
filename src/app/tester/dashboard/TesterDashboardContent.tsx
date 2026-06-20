@@ -35,18 +35,7 @@ import SampleEquipmentRow from '@/components/tester/workbench/SampleEquipmentRow
 import ScheduleActivityRow from '@/components/tester/workbench/ScheduleActivityRow';
 import LabAssistantSection from '@/components/tester/workbench/LabAssistantSection';
 import AllTestsList from '@/components/tester/workbench/AllTestsList';
-
-function getCurrentTesterId(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) return null;
-    const parsedUser = JSON.parse(storedUser);
-    return parsedUser?.id ? String(parsedUser.id) : null;
-  } catch {
-    return null;
-  }
-}
+import { getCurrentTesterId } from '@/lib/testerReportApi';
 
 export default function TesterDashboardContent() {
   const router = useRouter();
@@ -253,24 +242,6 @@ export default function TesterDashboardContent() {
     });
   };
 
-  const handleGenerateReport = async () => {
-    if (!activeTest) return;
-    try {
-      const response = await fetch(publicApiUrl(`/api/reports/generate/${activeTest.id}`), {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        alert(data.error || 'Failed to generate report');
-        return;
-      }
-      await fetchAssignedTests();
-      alert('Report generated successfully');
-    } catch {
-      alert('Failed to generate report');
-    }
-  };
-
   const handleSidebarCollapsedChange = useCallback((collapsed: boolean) => {
     setSidebarCollapsed(collapsed);
   }, []);
@@ -312,6 +283,7 @@ export default function TesterDashboardContent() {
             onSelect={(t) => handleSelectTest(t, 'workbench')}
             onStartTest={handleStartTest}
             onOpenDetail={(id) => router.push(`/tester/tests/${id}`)}
+            onReportGenerated={fetchAssignedTests}
           />
         );
       case 'workbench':
@@ -329,7 +301,7 @@ export default function TesterDashboardContent() {
               onOpenTestDetail={
                 activeTest ? () => router.push(`/tester/tests/${activeTest.id}`) : undefined
               }
-              onGenerateReport={handleGenerateReport}
+              onReportGenerated={fetchAssignedTests}
             />
           </>
         );

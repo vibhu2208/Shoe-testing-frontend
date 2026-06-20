@@ -61,6 +61,7 @@ interface Props {
   extractedData: ExtractedData;
   onConfirm: (tests: TestRow[], componentInfo: ComponentInfo) => void;
   onBack: () => void;
+  source?: 'pdf' | 'library';
 }
 
 const INHOUSE_TEST_OPTIONS = [
@@ -76,7 +77,8 @@ const INHOUSE_TEST_OPTIONS = [
   { id: null, label: 'No mapping (manual)' }
 ];
 
-const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBack }) => {
+const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBack, source = 'pdf' }) => {
+  const isLibrarySource = source === 'library';
   const [tests, setTests] = useState<TestRow[]>(() => {
     // Deep clone the tests array to prevent shared references
     return (extractedData.tests || []).map((test, index) => ({
@@ -264,7 +266,9 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
     <div className="flex flex-col h-full">
       {/* Component Info Bar */}
       <div className="bg-slate-50 p-4 border-b">
-        <h3 className="text-sm font-medium text-slate-900 mb-3">Extracted Component</h3>
+        <h3 className="text-sm font-medium text-slate-900 mb-3">
+          {isLibrarySource ? 'Component Details (Optional)' : 'Extracted Component'}
+        </h3>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Component Name</label>
@@ -299,30 +303,36 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
         </div>
       </div>
 
-      {/* Extraction Summary */}
+      {/* Summary */}
       <div className="p-4 border-b">
         <div className="flex flex-wrap gap-2 mb-2">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-            Total Tests: {extractedData.extraction_meta.total_tests_found}
+            Total Tests: {tests.length}
           </span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            In-House: {extractedData.extraction_meta.inhouse_count}
-          </span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-            Outsource: {extractedData.extraction_meta.outsource_count}
-          </span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-            Raw Material: {extractedData.extraction_meta.raw_material_count}
-          </span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-            WIP: {extractedData.extraction_meta.wip_count}
-          </span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-            Finished Good: {extractedData.extraction_meta.finished_good_count}
-          </span>
+          {!isLibrarySource && (
+            <>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                In-House: {extractedData.extraction_meta.inhouse_count}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                Outsource: {extractedData.extraction_meta.outsource_count}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                Raw Material: {extractedData.extraction_meta.raw_material_count}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                WIP: {extractedData.extraction_meta.wip_count}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                Finished Good: {extractedData.extraction_meta.finished_good_count}
+              </span>
+            </>
+          )}
         </div>
         <p className="text-xs text-slate-500 italic">
-          Review and edit before confirming. Category and execution type can be changed per row.
+          {isLibrarySource
+            ? 'Enter the client requirement for each selected test. Category, execution type, and other fields can be adjusted per row.'
+            : 'Review and edit before confirming. Category and execution type can be changed per row.'}
         </p>
       </div>
 
@@ -719,7 +729,7 @@ const ExtractionReviewTable: React.FC<Props> = ({ extractedData, onConfirm, onBa
             }`}
             title={validationErrors.length > 0 ? 'Please fix validation errors first' : ''}
           >
-            Confirm & Create Order
+            Confirm & Continue
           </button>
         </div>
       </div>
